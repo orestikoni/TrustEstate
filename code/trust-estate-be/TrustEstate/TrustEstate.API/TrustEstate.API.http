@@ -1,0 +1,6 @@
+@TrustEstate.API_HostAddress = http://localhost:5233
+
+GET {{TrustEstate.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
