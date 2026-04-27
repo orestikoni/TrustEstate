@@ -1,19 +1,21 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using TrustEstate.Domain.Entities;
 
-namespace TrustEstate.Infrastructure.Persistence
+namespace TrustEstate.Infrastructure.Persistence;
+
+public class TrustEstateDbContext : DbContext
 {
-    public class TrustEstateDbContext : DbContext
+    public TrustEstateDbContext(DbContextOptions<TrustEstateDbContext> options)
+        : base(options)
     {
-        public TrustEstateDbContext(DbContextOptions<TrustEstateDbContext> options)
-            : base(options)
-        {
-        }
+    }
 
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
-        {
-            base.OnModelCreating(modelBuilder);
+    public DbSet<User> Users => Set<User>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
-            modelBuilder.ApplyConfigurationsFromAssembly(typeof(TrustEstateDbContext).Assembly);
-        }
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(TrustEstateDbContext).Assembly);
     }
 }

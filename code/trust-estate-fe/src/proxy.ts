@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password'];
+const PUBLIC_ROUTES = ['/', '/login', '/register'];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (
     PUBLIC_ROUTES.includes(pathname) ||
-    pathname.startsWith('/reset-password') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api') ||
     /\.(ico|png|jpg|jpeg|svg|webp)$/.test(pathname)
