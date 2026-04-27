@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client';
+import { apiClient, tokenStorage } from '@/lib/api-client';
 import type {
   LoginFormData,
   RegisterFormData,
@@ -30,7 +30,7 @@ export const authService = {
   resetPassword: (token: string, data: Omit<ResetPasswordFormData, 'confirmPassword'>) =>
     apiClient.post<{ message: string }>('/auth/reset-password', { token, ...data }),
 
-  logout: () => apiClient.post<void>('/auth/logout', {}),
+  logout: () => apiClient.post<void>('/auth/logout', { refreshToken: tokenStorage.getRefresh() }),
 
   me: () => apiClient.get<User>('/auth/me'),
 };
