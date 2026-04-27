@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TrustEstate.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using TrustEstate.Infrastructure.Persistence;
 namespace TrustEstate.Infrastructure.Migrations
 {
     [DbContext(typeof(TrustEstateDbContext))]
-    partial class TrustEstateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260427151357_AddAuth")]
+    partial class AddAuth
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

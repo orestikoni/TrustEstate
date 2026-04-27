@@ -1,9 +1,7 @@
-import { apiClient } from '@/lib/api-client';
+import { apiClient, tokenStorage } from '@/lib/api-client';
 import type {
   LoginFormData,
   RegisterFormData,
-  ForgotPasswordFormData,
-  ResetPasswordFormData,
 } from '@/lib/validations/auth';
 import type { AuthTokens, User } from '@/types';
 
@@ -24,13 +22,7 @@ export const authService = {
   register: (data: Omit<RegisterFormData, 'confirmPassword' | 'acceptTerms'>) =>
     apiClient.post<RegisterResponse>('/auth/register', data),
 
-  forgotPassword: (data: ForgotPasswordFormData) =>
-    apiClient.post<{ message: string }>('/auth/forgot-password', data),
-
-  resetPassword: (token: string, data: Omit<ResetPasswordFormData, 'confirmPassword'>) =>
-    apiClient.post<{ message: string }>('/auth/reset-password', { token, ...data }),
-
-  logout: () => apiClient.post<void>('/auth/logout', {}),
+  logout: () => apiClient.post<void>('/auth/logout', { refreshToken: tokenStorage.getRefresh() }),
 
   me: () => apiClient.get<User>('/auth/me'),
 };
