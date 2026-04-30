@@ -13,7 +13,6 @@ public class TrustEstateDbContext : DbContext
     public DbSet<AgentProfile> AgentProfiles => Set<AgentProfile>();
     public DbSet<InspectorProfile> InspectorProfiles => Set<InspectorProfile>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
-    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<LoginAttempt> LoginAttempts => Set<LoginAttempt>();
 
     // Adding future DbSets here (Listings, Offers, Inspections, etc.)

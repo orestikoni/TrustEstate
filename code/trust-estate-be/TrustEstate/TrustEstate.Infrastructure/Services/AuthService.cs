@@ -18,10 +18,8 @@ public sealed class AuthService : IAuthService
     private readonly ITokenRepository _tokens;
     private readonly ILoginAttemptRepository _loginAttempts;
     private readonly IJwtService _jwt;
-    private readonly IEmailService _email;
     private readonly AuthSettings _settings;
 
-    // How many consecutive failures lock the account (FR_04)
     private const int MaxFailedAttempts = 5;
     private static readonly TimeSpan FailedAttemptWindow = TimeSpan.FromMinutes(15);
 
@@ -30,14 +28,12 @@ public sealed class AuthService : IAuthService
         ITokenRepository tokens,
         ILoginAttemptRepository loginAttempts,
         IJwtService jwt,
-        IEmailService email,
         IOptions<AuthSettings> settings)
     {
         _users = users;
         _tokens = tokens;
         _loginAttempts = loginAttempts;
         _jwt = jwt;
-        _email = email;
         _settings = settings.Value;
     }
 
@@ -225,58 +221,6 @@ public sealed class AuthService : IAuthService
             ExpiresIn = _jwt.AccessTokenExpiresInSeconds,
         };
     }
-    // FORGOT PASSWORD  (FR_05)
-    public async Task ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken ct = default)
-    {
-        var email = request.Email.Trim().ToLowerInvariant();
-        var user = await _users.GetByEmailAsync(email, ct);
-
-        // Always return — never reveal whether email exists
-        if (user is null || user.AccountStatus != AccountStatus.Active)
-            return;
-
-        var rawToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64))
-            .Replace("+", "-").Replace("/", "_").Replace("=", "");
-
-        var tokenEntity = new PasswordResetToken
-        {
-            UserId = user.UserId,
-            TokenHash = HashToken(rawToken),
-            ExpiresAt = DateTime.UtcNow.AddHours(1),   // 1-hour expiry shown in FE success screen
-            CreatedAt = DateTime.UtcNow,
-        };
-
-        await _tokens.AddPasswordResetTokenAsync(tokenEntity, ct);
-        await _tokens.SaveChangesAsync(ct);
-
-        var resetLink = $"{_settings.FrontendBaseUrl}/reset-password/{rawToken}";
-        await _email.SendPasswordResetEmailAsync(user.EmailAddress, user.FirstName, resetLink, ct);
-    }
-
-    // RESET PASSWORD  (FR_05)
-    public async Task ResetPasswordAsync(ResetPasswordRequest request, CancellationToken ct = default)
-    {
-        var hash = HashToken(request.Token);
-        var tokenEntity = await _tokens.GetActivePasswordResetTokenByHashAsync(hash, ct);
-
-        // FE maps 400 → "This reset link is invalid or has expired."
-        if (tokenEntity is null || tokenEntity.ExpiresAt <= DateTime.UtcNow)
-            throw new AuthenticationException("Reset link is invalid or has expired.");
-
-        var user = await _users.GetByIdAsync(tokenEntity.UserId, ct)
-            ?? throw new AuthenticationException("User not found.");
-
-        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
-        _users.Update(user);
-
-        // Invalidate token and revoke all refresh tokens (security best practice)
-        await _tokens.InvalidatePasswordResetTokenAsync(tokenEntity, ct);
-        await _tokens.RevokeAllUserRefreshTokensAsync(user.UserId, ct);
-
-        await _users.SaveChangesAsync(ct);
-        await _tokens.SaveChangesAsync(ct);
-    }
-
     // GET CURRENT USER  — called by FE on app boot (authService.me())
     public async Task<UserDto> GetCurrentUserAsync(int userId, CancellationToken ct = default)
     {

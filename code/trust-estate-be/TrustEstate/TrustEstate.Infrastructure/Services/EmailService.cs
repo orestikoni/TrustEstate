@@ -20,27 +20,6 @@ public sealed class EmailService : IEmailService
         _settings = settings.Value;
     }
 
-    public async Task SendPasswordResetEmailAsync(
-        string toEmail, string firstName, string resetLink, CancellationToken ct = default)
-    {
-        var subject = "Reset your TrustEstate password";
-        var body = $"""
-            <p>Hi {firstName},</p>
-            <p>We received a request to reset your TrustEstate password.</p>
-            <p>
-              <a href="{resetLink}" style="background:#2563eb;color:#fff;padding:12px 24px;
-                 border-radius:8px;text-decoration:none;font-weight:600;">
-                Reset Password
-              </a>
-            </p>
-            <p>This link will expire in <strong>1 hour</strong>.</p>
-            <p>If you did not request a password reset, you can safely ignore this email.</p>
-            <p>— The TrustEstate Team</p>
-            """;
-
-        await SendAsync(toEmail, subject, body, ct);
-    }
-
     public async Task SendAccountApprovedEmailAsync(
         string toEmail, string firstName, CancellationToken ct = default)
     {

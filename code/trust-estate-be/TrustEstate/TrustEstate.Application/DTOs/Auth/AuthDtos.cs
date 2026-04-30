@@ -27,19 +27,6 @@ public sealed record LoginRequest
     public string Password { get; init; } = string.Empty;
 }
 
-/// <summary>POST /api/auth/forgot-password</summary>
-public sealed record ForgotPasswordRequest
-{
-    public string Email { get; init; } = string.Empty;
-}
-
-/// <summary>POST /api/auth/reset-password</summary>
-public sealed record ResetPasswordRequest
-{
-    public string Token { get; init; } = string.Empty;
-    public string Password { get; init; } = string.Empty;
-}
-
 /// <summary>POST /api/auth/refresh</summary>
 public sealed record RefreshTokenRequest
 {
@@ -94,5 +81,3 @@ public sealed record RegisterResponse
     public string Message { get; init; } = string.Empty;
 }
 
-/// <summary>Generic message wrapper used by forgot-password, reset-password, logout.</summary>
-public sealed record MessageResponse(string Message);

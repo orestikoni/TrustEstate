@@ -1,13 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using TrustEstate.Application.Interfaces.Auth;
 using TrustEstate.Domain.Entities;
-using TrustEstate.Domain.Enums;
 
 namespace TrustEstate.Infrastructure.Persistence.Repositories;
 
@@ -16,8 +9,6 @@ public sealed class TokenRepository : ITokenRepository
     private readonly TrustEstateDbContext _db;
 
     public TokenRepository(TrustEstateDbContext db) => _db = db;
-
-    // Refresh Tokens 
 
     public async Task AddRefreshTokenAsync(RefreshToken token, CancellationToken ct = default)
         => await _db.RefreshTokens.AddAsync(token, ct);
@@ -47,25 +38,6 @@ public sealed class TokenRepository : ITokenRepository
             t.RevokedAt = DateTime.UtcNow;
         }
         _db.RefreshTokens.UpdateRange(tokens);
-    }
-
-    // Password Reset Tokens 
-
-    public async Task AddPasswordResetTokenAsync(PasswordResetToken token, CancellationToken ct = default)
-        => await _db.PasswordResetTokens.AddAsync(token, ct);
-
-    public Task<PasswordResetToken?> GetActivePasswordResetTokenByHashAsync(string tokenHash, CancellationToken ct = default)
-        => _db.PasswordResetTokens
-            .FirstOrDefaultAsync(t =>
-                t.TokenHash == tokenHash &&
-                t.TokenStatus == PasswordResetTokenStatus.Active, ct);
-
-    public Task InvalidatePasswordResetTokenAsync(PasswordResetToken token, CancellationToken ct = default)
-    {
-        token.TokenStatus = PasswordResetTokenStatus.Used;
-        token.UsedAt = DateTime.UtcNow;
-        _db.PasswordResetTokens.Update(token);
-        return Task.CompletedTask;
     }
 
     public Task SaveChangesAsync(CancellationToken ct = default)
