@@ -22,39 +22,69 @@ namespace TrustEstate.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("TrustEstate.Domain.Entities.PasswordResetToken", b =>
+            modelBuilder.Entity("TrustEstate.Domain.Entities.Listing", b =>
                 {
-                    b.Property<int>("Id")
+                    b.Property<int>("ListingId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("ListingId"));
+
+                    b.Property<int?>("AgentId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("AskingPrice")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("CorrectionNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)");
 
-                    b.Property<bool>("IsUsed")
-                        .HasColumnType("boolean");
+                    b.Property<string>("ListingType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
-                    b.Property<string>("Token")
+                    b.Property<string>("Location")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("ModerationNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("OwnerId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
-                    b.HasKey("Id");
+                    b.HasKey("ListingId");
 
-                    b.HasIndex("Token")
-                        .IsUnique();
+                    b.HasIndex("AgentId");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("OwnerId");
 
-                    b.ToTable("PasswordResetTokens");
+                    b.ToTable("Listings", (string)null);
                 });
 
             modelBuilder.Entity("TrustEstate.Domain.Entities.RefreshToken", b =>
@@ -160,15 +190,22 @@ namespace TrustEstate.Infrastructure.Migrations
                     b.ToTable("Users");
                 });
 
-            modelBuilder.Entity("TrustEstate.Domain.Entities.PasswordResetToken", b =>
+            modelBuilder.Entity("TrustEstate.Domain.Entities.Listing", b =>
                 {
-                    b.HasOne("TrustEstate.Domain.Entities.User", "User")
-                        .WithMany("PasswordResetTokens")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                    b.HasOne("TrustEstate.Domain.Entities.User", "Agent")
+                        .WithMany()
+                        .HasForeignKey("AgentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("TrustEstate.Domain.Entities.User", "Owner")
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("User");
+                    b.Navigation("Agent");
+
+                    b.Navigation("Owner");
                 });
 
             modelBuilder.Entity("TrustEstate.Domain.Entities.RefreshToken", b =>
@@ -184,8 +221,6 @@ namespace TrustEstate.Infrastructure.Migrations
 
             modelBuilder.Entity("TrustEstate.Domain.Entities.User", b =>
                 {
-                    b.Navigation("PasswordResetTokens");
-
                     b.Navigation("RefreshTokens");
                 });
 #pragma warning restore 612, 618
