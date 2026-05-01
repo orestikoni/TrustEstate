@@ -22,102 +22,69 @@ namespace TrustEstate.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("TrustEstate.Domain.Entities.AgentProfile", b =>
+            modelBuilder.Entity("TrustEstate.Domain.Entities.Listing", b =>
                 {
-                    b.Property<int>("AgentProfileId")
+                    b.Property<int>("ListingId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("AgentProfileId"));
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("ListingId"));
+
+                    b.Property<int?>("AgentId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("AskingPrice")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("CorrectionNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
 
                     b.Property<string>("AgencyName")
                         .HasColumnType("text");
 
-                    b.Property<int>("AgencyType")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("IsVerified")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("VerificationNotes")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("VerifiedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("AgentProfileId");
-
-                    b.HasIndex("UserId")
-                        .IsUnique();
-
-                    b.ToTable("AgentProfiles");
-                });
-
-            modelBuilder.Entity("TrustEstate.Domain.Entities.InspectorProfile", b =>
-                {
-                    b.Property<int>("InspectorProfileId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("InspectorProfileId"));
-
-                    b.Property<bool>("IsVerified")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("ProfessionalQualifications")
-                        .HasColumnType("text");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("VerificationNotes")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("VerifiedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("InspectorProfileId");
-
-                    b.HasIndex("UserId")
-                        .IsUnique();
-
-                    b.ToTable("InspectorProfiles");
-                });
-
-            modelBuilder.Entity("TrustEstate.Domain.Entities.LoginAttempt", b =>
-                {
-                    b.Property<int>("AttemptId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("AttemptId"));
-
-                    b.Property<DateTime>("AttemptedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("EmailAttempted")
+                    b.Property<string>("Description")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)");
 
-                    b.Property<string>("IpAddress")
-                        .HasMaxLength(45)
-                        .HasColumnType("character varying(45)");
+                    b.Property<string>("ListingType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
-                    b.Property<bool>("Success")
-                        .HasColumnType("boolean");
+                    b.Property<string>("Location")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
 
-                    b.Property<int?>("UserId")
+                    b.Property<string>("ModerationNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("OwnerId")
                         .HasColumnType("integer");
 
-                    b.HasKey("AttemptId");
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
-                    b.HasIndex("UserId");
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
-                    b.ToTable("LoginAttempts");
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ListingId");
+
+                    b.HasIndex("AgentId");
+
+                    b.HasIndex("OwnerId");
+
+                    b.ToTable("Listings", (string)null);
                 });
 
             modelBuilder.Entity("TrustEstate.Domain.Entities.RefreshToken", b =>
@@ -204,26 +171,22 @@ namespace TrustEstate.Infrastructure.Migrations
                     b.ToTable("Users");
                 });
 
-            modelBuilder.Entity("TrustEstate.Domain.Entities.AgentProfile", b =>
+            modelBuilder.Entity("TrustEstate.Domain.Entities.Listing", b =>
                 {
-                    b.HasOne("TrustEstate.Domain.Entities.User", "User")
-                        .WithOne("AgentProfile")
-                        .HasForeignKey("TrustEstate.Domain.Entities.AgentProfile", "UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                    b.HasOne("TrustEstate.Domain.Entities.User", "Agent")
+                        .WithMany()
+                        .HasForeignKey("AgentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("TrustEstate.Domain.Entities.User", "Owner")
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("User");
-                });
+                    b.Navigation("Agent");
 
-            modelBuilder.Entity("TrustEstate.Domain.Entities.InspectorProfile", b =>
-                {
-                    b.HasOne("TrustEstate.Domain.Entities.User", "User")
-                        .WithOne("InspectorProfile")
-                        .HasForeignKey("TrustEstate.Domain.Entities.InspectorProfile", "UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
+                    b.Navigation("Owner");
                 });
 
             modelBuilder.Entity("TrustEstate.Domain.Entities.LoginAttempt", b =>
@@ -248,12 +211,6 @@ namespace TrustEstate.Infrastructure.Migrations
 
             modelBuilder.Entity("TrustEstate.Domain.Entities.User", b =>
                 {
-                    b.Navigation("AgentProfile");
-
-                    b.Navigation("InspectorProfile");
-
-                    b.Navigation("LoginAttempts");
-
                     b.Navigation("RefreshTokens");
                 });
 #pragma warning restore 612, 618

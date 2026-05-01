@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace TrustEstate.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class AddAuth : Migration
+    public partial class AddListings : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -38,26 +38,39 @@ namespace TrustEstate.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "PasswordResetTokens",
+                name: "Listings",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
+                    ListingId = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    Token = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    UserId = table.Column<int>(type: "integer", nullable: false),
-                    ExpiresAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    Title = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    Description = table.Column<string>(type: "character varying(5000)", maxLength: 5000, nullable: false),
+                    Location = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
+                    AskingPrice = table.Column<decimal>(type: "numeric(18,2)", nullable: false),
+                    ListingType = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    Status = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    OwnerId = table.Column<int>(type: "integer", nullable: false),
+                    AgentId = table.Column<int>(type: "integer", nullable: true),
+                    CorrectionNotes = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    ModerationNotes = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    IsUsed = table.Column<bool>(type: "boolean", nullable: false)
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_PasswordResetTokens", x => x.Id);
+                    table.PrimaryKey("PK_Listings", x => x.ListingId);
                     table.ForeignKey(
-                        name: "FK_PasswordResetTokens_Users_UserId",
-                        column: x => x.UserId,
+                        name: "FK_Listings_Users_AgentId",
+                        column: x => x.AgentId,
                         principalTable: "Users",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "FK_Listings_Users_OwnerId",
+                        column: x => x.OwnerId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -84,15 +97,14 @@ namespace TrustEstate.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_PasswordResetTokens_Token",
-                table: "PasswordResetTokens",
-                column: "Token",
-                unique: true);
+                name: "IX_Listings_AgentId",
+                table: "Listings",
+                column: "AgentId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_PasswordResetTokens_UserId",
-                table: "PasswordResetTokens",
-                column: "UserId");
+                name: "IX_Listings_OwnerId",
+                table: "Listings",
+                column: "OwnerId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_RefreshTokens_Token",
@@ -116,7 +128,7 @@ namespace TrustEstate.Infrastructure.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "PasswordResetTokens");
+                name: "Listings");
 
             migrationBuilder.DropTable(
                 name: "RefreshTokens");
