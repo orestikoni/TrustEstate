@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using TrustEstate.Application.DTOs.Auth;
 using TrustEstate.Application.Interfaces.Auth;
@@ -12,13 +12,24 @@ public class AuthService : IAuthService
 {
     private readonly TrustEstateDbContext _db;
     private readonly IJwtService _jwt;
-    private readonly IConfiguration _configuration;
+    private readonly AuthSettings _settings;
 
-    public AuthService(TrustEstateDbContext db, IJwtService jwt, IConfiguration configuration)
+    // How many consecutive failures lock the account (FR_04)
+    private const int MaxFailedAttempts = 5;
+    private static readonly TimeSpan FailedAttemptWindow = TimeSpan.FromMinutes(15);
+
+    public AuthService(
+        IUserRepository users,
+        ITokenRepository tokens,
+        ILoginAttemptRepository loginAttempts,
+        IJwtService jwt,
+        IEmailService email,
+        IOptions<AuthSettings> settings)
     {
         _db = db;
         _jwt = jwt;
-        _configuration = configuration;
+        _email = email;
+        _settings = settings.Value;
     }
 
     public async Task<LoginResponseDto> LoginAsync(LoginRequestDto request)
@@ -122,18 +133,65 @@ public class AuthService : IAuthService
             UserId = token.UserId,
             ExpiresAt = DateTime.UtcNow.AddDays(int.Parse(_configuration["Jwt:RefreshTokenExpiryDays"]!)),
         };
+    }
+    // FORGOT PASSWORD  (FR_05)
+    public async Task ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken ct = default)
+    {
+        var email = request.Email.Trim().ToLowerInvariant();
+        var user = await _users.GetByEmailAsync(email, ct);
 
-        _db.RefreshTokens.Add(newRefreshToken);
-        await _db.SaveChangesAsync();
+        // Always return — never reveal whether email exists
+        if (user is null || user.AccountStatus != AccountStatus.Active)
+            return;
 
-        var expiryMinutes = int.Parse(_configuration["Jwt:AccessTokenExpiryMinutes"]!);
+        var rawToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64))
+            .Replace("+", "-").Replace("/", "_").Replace("=", "");
 
-        return new AuthTokensDto
+        var tokenEntity = new PasswordResetToken
         {
-            AccessToken = _jwt.GenerateAccessToken(token.User),
-            RefreshToken = newRefreshToken.Token,
-            ExpiresIn = expiryMinutes * 60,
+            UserId = user.UserId,
+            TokenHash = HashToken(rawToken),
+            ExpiresAt = DateTime.UtcNow.AddHours(1),   // 1-hour expiry shown in FE success screen
+            CreatedAt = DateTime.UtcNow,
         };
+
+        await _tokens.AddPasswordResetTokenAsync(tokenEntity, ct);
+        await _tokens.SaveChangesAsync(ct);
+
+        var resetLink = $"{_settings.FrontendBaseUrl}/reset-password/{rawToken}";
+        await _email.SendPasswordResetEmailAsync(user.EmailAddress, user.FirstName, resetLink, ct);
+    }
+
+    // RESET PASSWORD  (FR_05)
+    public async Task ResetPasswordAsync(ResetPasswordRequest request, CancellationToken ct = default)
+    {
+        var hash = HashToken(request.Token);
+        var tokenEntity = await _tokens.GetActivePasswordResetTokenByHashAsync(hash, ct);
+
+        // FE maps 400 → "This reset link is invalid or has expired."
+        if (tokenEntity is null || tokenEntity.ExpiresAt <= DateTime.UtcNow)
+            throw new AuthenticationException("Reset link is invalid or has expired.");
+
+        var user = await _users.GetByIdAsync(tokenEntity.UserId, ct)
+            ?? throw new AuthenticationException("User not found.");
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+        _users.Update(user);
+
+        // Invalidate token and revoke all refresh tokens (security best practice)
+        await _tokens.InvalidatePasswordResetTokenAsync(tokenEntity, ct);
+        await _tokens.RevokeAllUserRefreshTokensAsync(user.UserId, ct);
+
+        await _users.SaveChangesAsync(ct);
+        await _tokens.SaveChangesAsync(ct);
+    }
+
+    // GET CURRENT USER  — called by FE on app boot (authService.me())
+    public async Task<UserDto> GetCurrentUserAsync(int userId, CancellationToken ct = default)
+    {
+        var user = await _users.GetByIdAsync(userId, ct)
+            ?? throw new NotFoundException(nameof(User), userId);
+        return MapToDto(user);
     }
 
     public async Task<UserDto> GetCurrentUserAsync(int userId)
