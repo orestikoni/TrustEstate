@@ -1,13 +1,9 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TrustEstate.Application.DTOs.Auth;
 using TrustEstate.Application.Interfaces.Auth;
-using TrustEstate.Domain.Exceptions;
-using LoginRequest = TrustEstate.Application.DTOs.Auth.LoginRequest;
-using RegisterRequest = TrustEstate.Application.DTOs.Auth.RegisterRequest;
-using ForgotPasswordRequest = TrustEstate.Application.DTOs.Auth.ForgotPasswordRequest;
-using ResetPasswordRequest = TrustEstate.Application.DTOs.Auth.ResetPasswordRequest;
 
 namespace TrustEstate.API.Controllers;
 
@@ -23,69 +19,33 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
+    public async Task<IActionResult> Login([FromBody] LoginRequestDto request, CancellationToken ct)
     {
-        var result = await _authService.LoginAsync(request);
+        var result = await _authService.LoginAsync(request, ct);
         return Ok(result);
     }
 
     [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] RegisterRequestDto request)
+    public async Task<IActionResult> Register([FromBody] RegisterRequestDto request, CancellationToken ct)
     {
-        var result = await _authService.RegisterAsync(request);
+        var result = await _authService.RegisterAsync(request, ct);
         return StatusCode(201, result);
     }
 
     [HttpPost("logout")]
-    public async Task<IActionResult> Logout([FromBody] RefreshTokenRequestDto request)
+    public async Task<IActionResult> Logout([FromBody] RefreshTokenRequestDto request, CancellationToken ct)
     {
-        await _authService.LogoutAsync(request.RefreshToken);
+        await _authService.LogoutAsync(request.RefreshToken, ct);
         return NoContent();
     }
 
     [HttpPost("refresh")]
-    public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequestDto request)
+    public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequestDto request, CancellationToken ct)
     {
-        var result = await _authService.RefreshTokensAsync(request.RefreshToken);
+        var result = await _authService.RefreshTokensAsync(request.RefreshToken, ct);
         return Ok(result);
     }
 
-    //  POST /api/auth/forgot-password 
-    /// <summary>
-    /// Sends a password reset email if the address exists.
-    /// Always returns 200 to prevent email enumeration.
-    /// </summary>
-    [HttpPost("forgot-password")]
-    [ProducesResponseType(typeof(MessageResponse), StatusCodes.Status200OK)]
-    public async Task<IActionResult> ForgotPassword(
-        [FromBody] ForgotPasswordRequest request,
-        CancellationToken ct)
-    {
-        await _auth.ForgotPasswordAsync(request, ct);
-        return Ok(new MessageResponse("If an account exists for that email, a reset link has been sent."));
-    }
-
-    // POST /api/auth/reset-password 
-    /// <summary>
-    /// Validates the token from the reset link URL and updates the password.
-    /// FE maps 400 ? "This reset link is invalid or has expired."
-    /// </summary>
-    [HttpPost("reset-password")]
-    [ProducesResponseType(typeof(MessageResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> ResetPassword(
-        [FromBody] ResetPasswordRequest request,
-        CancellationToken ct)
-    {
-        await _auth.ResetPasswordAsync(request, ct);
-        return Ok(new MessageResponse("Password has been reset successfully."));
-    }
-
-    //  GET /api/auth/me 
-    /// <summary>
-    /// Returns the current authenticated user.
-    /// Called by auth.context.ts on app boot to rehydrate user state.
-    /// </summary>
     [HttpGet("me")]
     [Authorize]
     [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
@@ -93,7 +53,18 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Me(CancellationToken ct)
     {
         var userId = GetCurrentUserId();
-        var user = await _auth.GetCurrentUserAsync(userId, ct);
+        var user = await _authService.GetCurrentUserAsync(userId, ct);
         return Ok(user);
+    }
+
+    private int GetCurrentUserId()
+    {
+        var sub = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                  ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+
+        if (sub == null || !int.TryParse(sub, out var userId))
+            throw new UnauthorizedAccessException("Invalid token.");
+
+        return userId;
     }
 }
