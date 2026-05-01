@@ -1,4 +1,4 @@
-﻿using TrustEstate.Application.DTOs.Auth;
+using TrustEstate.Application.DTOs.Auth;
 
 namespace TrustEstate.Application.Interfaces.Auth;
 
