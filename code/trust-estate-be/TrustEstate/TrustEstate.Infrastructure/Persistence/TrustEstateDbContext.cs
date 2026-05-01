@@ -11,6 +11,9 @@ public class TrustEstateDbContext : DbContext
     // Auth tables
     public DbSet<User> Users => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<LoginAttempt> LoginAttempts => Set<LoginAttempt>();
+
+    // Adding future DbSets here (Listings, Offers, Inspections, etc.)
 
     // Listing tables
     public DbSet<Listing> Listings => Set<Listing>();

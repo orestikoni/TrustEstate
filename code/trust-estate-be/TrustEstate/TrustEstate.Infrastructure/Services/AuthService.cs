@@ -21,10 +21,10 @@ public class AuthService : IAuthService
         _configuration = configuration;
     }
 
-    public async Task<LoginResponseDto> LoginAsync(LoginRequestDto request)
+    public async Task<LoginResponseDto> LoginAsync(LoginRequestDto request, CancellationToken ct = default)
     {
         var user = await _db.Users
-            .FirstOrDefaultAsync(u => u.Email == request.Email.ToLower());
+            .FirstOrDefaultAsync(u => u.Email == request.Email.ToLower(), ct);
 
         if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             throw new UnauthorizedAccessException("Invalid email or password.");
@@ -45,7 +45,7 @@ public class AuthService : IAuthService
         };
 
         _db.RefreshTokens.Add(refreshToken);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         var expiryMinutes = int.Parse(_configuration["Jwt:AccessTokenExpiryMinutes"]!);
 
@@ -61,11 +61,11 @@ public class AuthService : IAuthService
         };
     }
 
-    public async Task<RegisterResponseDto> RegisterAsync(RegisterRequestDto request)
+    public async Task<RegisterResponseDto> RegisterAsync(RegisterRequestDto request, CancellationToken ct = default)
     {
         var emailLower = request.Email.ToLower();
 
-        if (await _db.Users.AnyAsync(u => u.Email == emailLower))
+        if (await _db.Users.AnyAsync(u => u.Email == emailLower, ct))
             throw new InvalidOperationException("An account with this email already exists.");
 
         if (!Enum.TryParse<UserRole>(request.Role, out var role))
@@ -86,7 +86,7 @@ public class AuthService : IAuthService
         };
 
         _db.Users.Add(user);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         return new RegisterResponseDto
         {
@@ -95,21 +95,21 @@ public class AuthService : IAuthService
         };
     }
 
-    public async Task LogoutAsync(string refreshToken)
+    public async Task LogoutAsync(string refreshToken, CancellationToken ct = default)
     {
-        var token = await _db.RefreshTokens.FirstOrDefaultAsync(r => r.Token == refreshToken);
+        var token = await _db.RefreshTokens.FirstOrDefaultAsync(r => r.Token == refreshToken, ct);
         if (token != null && token.RevokedAt == null)
         {
             token.RevokedAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync();
+            await _db.SaveChangesAsync(ct);
         }
     }
 
-    public async Task<AuthTokensDto> RefreshTokensAsync(string refreshToken)
+    public async Task<AuthTokensDto> RefreshTokensAsync(string refreshToken, CancellationToken ct = default)
     {
         var token = await _db.RefreshTokens
             .Include(r => r.User)
-            .FirstOrDefaultAsync(r => r.Token == refreshToken);
+            .FirstOrDefaultAsync(r => r.Token == refreshToken, ct);
 
         if (token == null || !token.IsActive)
             throw new UnauthorizedAccessException("Invalid or expired refresh token.");
@@ -124,7 +124,7 @@ public class AuthService : IAuthService
         };
 
         _db.RefreshTokens.Add(newRefreshToken);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         var expiryMinutes = int.Parse(_configuration["Jwt:AccessTokenExpiryMinutes"]!);
 
@@ -136,9 +136,9 @@ public class AuthService : IAuthService
         };
     }
 
-    public async Task<UserDto> GetCurrentUserAsync(int userId)
+    public async Task<UserDto> GetCurrentUserAsync(int userId, CancellationToken ct = default)
     {
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
         if (user == null)
             throw new UnauthorizedAccessException("User not found.");
 
