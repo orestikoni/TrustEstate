@@ -18,11 +18,14 @@ public sealed class ListingController : ControllerBase
 
     // GET /api/listings — anyone can browse active listings
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<ListingDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetActiveListings(CancellationToken ct)
+    [ProducesResponseType(typeof(PagedResult<ListingDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetActiveListings(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
     {
-        var listings = await _listings.GetActiveListingsAsync(ct);
-        return Ok(listings);
+        var result = await _listings.GetActiveListingsAsync(page, pageSize, ct);
+        return Ok(result);
     }
 
     // GET /api/listings/{id} — anyone can view a listing detail
@@ -37,7 +40,7 @@ public sealed class ListingController : ControllerBase
 
     // GET /api/listings/my — Property Owner views their own listings
     [HttpGet("my")]
-    [Authorize]
+    [Authorize(Roles = "PropertyOwner")]
     [ProducesResponseType(typeof(IEnumerable<ListingDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetMyListings(CancellationToken ct)
     {
@@ -48,7 +51,7 @@ public sealed class ListingController : ControllerBase
 
     // GET /api/listings/assigned — Agent views listings assigned to them
     [HttpGet("assigned")]
-    [Authorize]
+    [Authorize(Roles = "Agent")]
     [ProducesResponseType(typeof(IEnumerable<ListingDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAssignedListings(CancellationToken ct)
     {
@@ -59,7 +62,7 @@ public sealed class ListingController : ControllerBase
 
     // POST /api/listings — Property Owner creates a listing
     [HttpPost]
-    [Authorize]
+    [Authorize(Roles = "PropertyOwner")]
     [ProducesResponseType(typeof(ListingDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateListing(
@@ -73,7 +76,7 @@ public sealed class ListingController : ControllerBase
 
     // PUT /api/listings/{id} — Property Owner edits a listing
     [HttpPut("{id:int}")]
-    [Authorize]
+    [Authorize(Roles = "PropertyOwner")]
     [ProducesResponseType(typeof(ListingDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -90,7 +93,7 @@ public sealed class ListingController : ControllerBase
 
     // DELETE /api/listings/{id} — Property Owner removes a listing
     [HttpDelete("{id:int}")]
-    [Authorize]
+    [Authorize(Roles = "PropertyOwner")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -103,7 +106,7 @@ public sealed class ListingController : ControllerBase
 
     // PUT /api/listings/{id}/approve — Agent approves a listing
     [HttpPut("{id:int}/approve")]
-    [Authorize]
+    [Authorize(Roles = "Agent")]
     [ProducesResponseType(typeof(ListingDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -117,7 +120,7 @@ public sealed class ListingController : ControllerBase
 
     // PUT /api/listings/{id}/request-corrections — Agent requests corrections
     [HttpPut("{id:int}/request-corrections")]
-    [Authorize]
+    [Authorize(Roles = "Agent")]
     [ProducesResponseType(typeof(ListingDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -137,6 +140,8 @@ public sealed class ListingController : ControllerBase
         var sub = User.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? User.FindFirstValue("sub")
             ?? throw new ForbiddenException("User identity not found in token.");
-        return int.Parse(sub);
+        if (!int.TryParse(sub, out var userId))
+            throw new ForbiddenException("Invalid token format.");
+        return userId;
     }
 }

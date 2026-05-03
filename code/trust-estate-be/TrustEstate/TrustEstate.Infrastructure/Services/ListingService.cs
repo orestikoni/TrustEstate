@@ -21,11 +21,22 @@ public sealed class ListingService : IListingService
         if (!Enum.TryParse<ListingType>(request.ListingType, out var listingType))
             throw new BusinessRuleException("Invalid listing type. Must be 'Sale' or 'Rent'.");
 
+        var title = request.Title.Trim();
+        var description = request.Description.Trim();
+        var location = request.Location.Trim();
+
+        if (string.IsNullOrEmpty(title))
+            throw new BusinessRuleException("Title cannot be empty.");
+        if (string.IsNullOrEmpty(description))
+            throw new BusinessRuleException("Description cannot be empty.");
+        if (string.IsNullOrEmpty(location))
+            throw new BusinessRuleException("Location cannot be empty.");
+
         var listing = new Listing
         {
-            Title = request.Title.Trim(),
-            Description = request.Description.Trim(),
-            Location = request.Location.Trim(),
+            Title = title,
+            Description = description,
+            Location = location,
             AskingPrice = request.AskingPrice,
             ListingType = listingType,
             Status = ListingStatus.PendingAgentReview,
@@ -41,11 +52,20 @@ public sealed class ListingService : IListingService
         return MapToDto(listing);
     }
 
-    // Anyone can browse active listings
-    public async Task<IEnumerable<ListingDto>> GetActiveListingsAsync(CancellationToken ct = default)
+    // Anyone can browse active listings — paginated
+    public async Task<PagedResult<ListingDto>> GetActiveListingsAsync(int page = 1, int pageSize = 20, CancellationToken ct = default)
     {
-        var listings = await _listings.GetAllActiveAsync(ct);
-        return listings.Select(MapToDto);
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var (listings, totalCount) = await _listings.GetAllActivePagedAsync(page, pageSize, ct);
+        return new PagedResult<ListingDto>
+        {
+            Items = listings.Select(MapToDto),
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize,
+        };
     }
 
     // Get single listing by id
@@ -85,9 +105,20 @@ public sealed class ListingService : IListingService
         if (!Enum.TryParse<ListingType>(request.ListingType, out var listingType))
             throw new BusinessRuleException("Invalid listing type. Must be 'Sale' or 'Rent'.");
 
-        listing.Title = request.Title.Trim();
-        listing.Description = request.Description.Trim();
-        listing.Location = request.Location.Trim();
+        var title = request.Title.Trim();
+        var description = request.Description.Trim();
+        var location = request.Location.Trim();
+
+        if (string.IsNullOrEmpty(title))
+            throw new BusinessRuleException("Title cannot be empty.");
+        if (string.IsNullOrEmpty(description))
+            throw new BusinessRuleException("Description cannot be empty.");
+        if (string.IsNullOrEmpty(location))
+            throw new BusinessRuleException("Location cannot be empty.");
+
+        listing.Title = title;
+        listing.Description = description;
+        listing.Location = location;
         listing.AskingPrice = request.AskingPrice;
         listing.ListingType = listingType;
         listing.UpdatedAt = DateTime.UtcNow;
@@ -148,7 +179,11 @@ public sealed class ListingService : IListingService
         if (listing.Status != ListingStatus.PendingAgentReview)
             throw new BusinessRuleException("Corrections can only be requested on listings in Pending Agent Review.");
 
-        listing.CorrectionNotes = request.CorrectionNotes.Trim();
+        var notes = request.CorrectionNotes.Trim();
+        if (string.IsNullOrEmpty(notes))
+            throw new BusinessRuleException("Correction notes cannot be empty.");
+
+        listing.CorrectionNotes = notes;
         listing.UpdatedAt = DateTime.UtcNow;
 
         _listings.Update(listing);

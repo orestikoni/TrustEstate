@@ -7,8 +7,8 @@ public interface IListingService
     /// <summary>Property Owner creates a new listing — starts as PendingAgentReview</summary>
     Task<ListingDto> CreateListingAsync(int ownerId, CreateListingRequest request, CancellationToken ct = default);
 
-    /// <summary>Anyone can browse all active listings</summary>
-    Task<IEnumerable<ListingDto>> GetActiveListingsAsync(CancellationToken ct = default);
+    /// <summary>Anyone can browse all active listings — paginated</summary>
+    Task<PagedResult<ListingDto>> GetActiveListingsAsync(int page = 1, int pageSize = 20, CancellationToken ct = default);
 
     /// <summary>Get a single listing by id</summary>
     Task<ListingDto> GetListingByIdAsync(int listingId, CancellationToken ct = default);

@@ -23,13 +23,25 @@ public class AuthService : IAuthService
 
     public async Task<LoginResponseDto> LoginAsync(LoginRequestDto request, CancellationToken ct = default)
     {
+        var email = request.Email.ToLower();
         var user = await _db.Users
-            .FirstOrDefaultAsync(u => u.Email == request.Email.ToLower(), ct);
+            .FirstOrDefaultAsync(u => u.Email == email, ct);
 
-        if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        var passwordValid = user != null && BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
+
+        _db.LoginAttempts.Add(new LoginAttempt
+        {
+            UserId = user?.Id,
+            EmailAttempted = email,
+            Success = passwordValid,
+            AttemptedAt = DateTime.UtcNow,
+        });
+        await _db.SaveChangesAsync(ct);
+
+        if (!passwordValid)
             throw new UnauthorizedAccessException("Invalid email or password.");
 
-        if (user.AccountStatus == AccountStatus.Suspended)
+        if (user!.AccountStatus == AccountStatus.Suspended)
             throw new InvalidOperationException("Your account has been suspended.");
 
         if (user.AccountStatus == AccountStatus.Deactivated)

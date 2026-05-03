@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using TrustEstate.Domain.Exceptions;
 
 namespace TrustEstate.API.Middleware;
 
@@ -31,6 +32,11 @@ public class ExceptionHandlingMiddleware
     {
         var (statusCode, message) = exception switch
         {
+            NotFoundException => (HttpStatusCode.NotFound, exception.Message),
+            ForbiddenException => (HttpStatusCode.Forbidden, exception.Message),
+            BusinessRuleException => (HttpStatusCode.UnprocessableEntity, exception.Message),
+            AuthenticationException => (HttpStatusCode.Unauthorized, exception.Message),
+            ConflictException => (HttpStatusCode.Conflict, exception.Message),
             UnauthorizedAccessException => (HttpStatusCode.Unauthorized, exception.Message),
             InvalidOperationException => (HttpStatusCode.BadRequest, exception.Message),
             ArgumentException => (HttpStatusCode.BadRequest, exception.Message),
