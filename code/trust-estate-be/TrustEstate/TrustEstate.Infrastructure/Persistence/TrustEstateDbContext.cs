@@ -17,6 +17,8 @@ public class TrustEstateDbContext : DbContext
 
     // Listing tables
     public DbSet<Listing> Listings => Set<Listing>();
+    public DbSet<ListingPhoto> ListingPhotos => Set<ListingPhoto>();
+    public DbSet<ListingAssignment> ListingAssignments => Set<ListingAssignment>();
 
     // Adding future DbSets here (Offers, Inspections, etc.)
 
