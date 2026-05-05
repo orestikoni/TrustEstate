@@ -7,6 +7,8 @@ using Microsoft.OpenApi.Models;
 using TrustEstate.API.Middleware;
 using TrustEstate.Infrastructure;
 using TrustEstate.Infrastructure.Persistence;
+using Microsoft.AspNetCore.RateLimiting;
+
 
 var builder = WebApplication.CreateBuilder(args);
 

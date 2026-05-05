@@ -3,9 +3,10 @@
 public enum ListingStatus
 {
     PendingAgentReview,
+    CorrectionsRequested,
     Active,
     UnderOffer,
-    Closed,
-    Flagged,
-    Suspended
+    Suspended,
+    Archived,
+    Removed
 }

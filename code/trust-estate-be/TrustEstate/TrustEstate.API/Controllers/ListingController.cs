@@ -16,19 +16,36 @@ public sealed class ListingController : ControllerBase
 
     public ListingController(IListingService listings) => _listings = listings;
 
-    // GET /api/listings — anyone can browse active listings
+    // ── Public ────────────────────────────────────────────────────────────────
+
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<ListingDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetActiveListings(
+        [FromQuery] string? city,
+        [FromQuery] string? country,
+        [FromQuery] decimal? minPrice,
+        [FromQuery] decimal? maxPrice,
+        [FromQuery] string? propertyType,
+        [FromQuery] string? listingType,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var result = await _listings.GetActiveListingsAsync(page, pageSize, ct);
+        var filter = new ListingFilterRequest
+        {
+            City = city,
+            Country = country,
+            MinPrice = minPrice,
+            MaxPrice = maxPrice,
+            PropertyType = propertyType,
+            ListingType = listingType,
+            Page = page,
+            PageSize = pageSize,
+        };
+        var result = await _listings.GetActiveListingsAsync(filter, ct);
         return Ok(result);
     }
 
-    // GET /api/listings/{id} — anyone can view a listing detail
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(ListingDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -38,7 +55,17 @@ public sealed class ListingController : ControllerBase
         return Ok(listing);
     }
 
-    // GET /api/listings/my — Property Owner views their own listings
+    [HttpGet("agents")]
+    [Authorize(Roles = "PropertyOwner")]
+    [ProducesResponseType(typeof(IEnumerable<AvailableAgentDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAvailableAgents(CancellationToken ct)
+    {
+        var agents = await _listings.GetAvailableAgentsAsync(ct);
+        return Ok(agents);
+    }
+
+    // ── Property Owner ────────────────────────────────────────────────────────
+
     [HttpGet("my")]
     [Authorize(Roles = "PropertyOwner")]
     [ProducesResponseType(typeof(IEnumerable<ListingDto>), StatusCodes.Status200OK)]
@@ -49,49 +76,30 @@ public sealed class ListingController : ControllerBase
         return Ok(listings);
     }
 
-    // GET /api/listings/assigned — Agent views listings assigned to them
-    [HttpGet("assigned")]
-    [Authorize(Roles = "Agent")]
-    [ProducesResponseType(typeof(IEnumerable<ListingDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAssignedListings(CancellationToken ct)
-    {
-        var agentId = GetCurrentUserId();
-        var listings = await _listings.GetAgentListingsAsync(agentId, ct);
-        return Ok(listings);
-    }
-
-    // POST /api/listings — Property Owner creates a listing
     [HttpPost]
     [Authorize(Roles = "PropertyOwner")]
     [ProducesResponseType(typeof(ListingDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CreateListing(
-        [FromBody] CreateListingRequest request,
-        CancellationToken ct)
+    public async Task<IActionResult> CreateListing([FromBody] CreateListingRequest request, CancellationToken ct)
     {
         var ownerId = GetCurrentUserId();
         var listing = await _listings.CreateListingAsync(ownerId, request, ct);
         return StatusCode(StatusCodes.Status201Created, listing);
     }
 
-    // PUT /api/listings/{id} — Property Owner edits a listing
     [HttpPut("{id:int}")]
     [Authorize(Roles = "PropertyOwner")]
     [ProducesResponseType(typeof(ListingDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateListing(
-        int id,
-        [FromBody] UpdateListingRequest request,
-        CancellationToken ct)
+    public async Task<IActionResult> UpdateListing(int id, [FromBody] UpdateListingRequest request, CancellationToken ct)
     {
         var ownerId = GetCurrentUserId();
         var listing = await _listings.UpdateListingAsync(ownerId, id, request, ct);
         return Ok(listing);
     }
 
-    // DELETE /api/listings/{id} — Property Owner removes a listing
     [HttpDelete("{id:int}")]
     [Authorize(Roles = "PropertyOwner")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -104,11 +112,32 @@ public sealed class ListingController : ControllerBase
         return NoContent();
     }
 
-    // PUT /api/listings/{id}/approve — Agent approves a listing
+    // ── Agent ─────────────────────────────────────────────────────────────────
+
+    [HttpGet("assigned")]
+    [Authorize(Roles = "Agent")]
+    [ProducesResponseType(typeof(IEnumerable<ListingDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAssignedListings(CancellationToken ct)
+    {
+        var agentId = GetCurrentUserId();
+        var listings = await _listings.GetAgentListingsAsync(agentId, ct);
+        return Ok(listings);
+    }
+
+    [HttpPut("{id:int}/assignment/respond")]
+    [Authorize(Roles = "Agent")]
+    [ProducesResponseType(typeof(ListingAssignmentDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RespondToAssignment(int id, [FromBody] RespondToAssignmentRequest request, CancellationToken ct)
+    {
+        var agentId = GetCurrentUserId();
+        var result = await _listings.RespondToAssignmentAsync(agentId, id, request, ct);
+        return Ok(result);
+    }
+
     [HttpPut("{id:int}/approve")]
     [Authorize(Roles = "Agent")]
     [ProducesResponseType(typeof(ListingDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ApproveListing(int id, CancellationToken ct)
@@ -118,22 +147,31 @@ public sealed class ListingController : ControllerBase
         return Ok(listing);
     }
 
-    // PUT /api/listings/{id}/request-corrections — Agent requests corrections
     [HttpPut("{id:int}/request-corrections")]
     [Authorize(Roles = "Agent")]
     [ProducesResponseType(typeof(ListingDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> RequestCorrections(
-        int id,
-        [FromBody] RequestCorrectionsRequest request,
-        CancellationToken ct)
+    public async Task<IActionResult> RequestCorrections(int id, [FromBody] RequestCorrectionsRequest request, CancellationToken ct)
     {
         var agentId = GetCurrentUserId();
         var listing = await _listings.RequestCorrectionsAsync(agentId, id, request, ct);
         return Ok(listing);
     }
+
+    [HttpPut("{id:int}/agent-update")]
+    [Authorize(Roles = "Agent")]
+    [ProducesResponseType(typeof(ListingDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AgentUpdateListing(int id, [FromBody] AgentUpdateListingRequest request, CancellationToken ct)
+    {
+        var agentId = GetCurrentUserId();
+        var listing = await _listings.AgentUpdateListingAsync(agentId, id, request, ct);
+        return Ok(listing);
+    }
+
+    // ── Helper ────────────────────────────────────────────────────────────────
 
     private int GetCurrentUserId()
     {
