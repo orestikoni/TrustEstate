@@ -42,6 +42,8 @@ export default function LoginPage() {
     } catch (err) {
       if (err instanceof ApiRequestError) {
         setServerError(err.apiError.message);
+      } else if (err instanceof TypeError) {
+        setServerError('Unable to connect to the server. Please ensure the backend is running.');
       } else {
         setServerError('Something went wrong. Please try again.');
       }
