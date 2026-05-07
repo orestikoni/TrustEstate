@@ -19,7 +19,7 @@ export const tokenStorage = {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_KEY);
-    document.cookie = `${TOKEN_KEY}=; path=/; max-age=0`;
+    document.cookie = `${TOKEN_KEY}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
   },
 };
 
@@ -66,7 +66,8 @@ async function request<T>(
   };
   const res = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers });
 
-  if (res.status === 401 && retry) {
+  const isAuthEndpoint = endpoint.startsWith('/auth/');
+  if (res.status === 401 && retry && !isAuthEndpoint) {
     if (isRefreshing) {
       return new Promise((resolve) => {
         refreshQueue.push(async (newToken) => {
