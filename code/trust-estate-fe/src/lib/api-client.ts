@@ -13,11 +13,13 @@ export const tokenStorage = {
     if (typeof window === 'undefined') return;
     localStorage.setItem(TOKEN_KEY, tokens.accessToken);
     localStorage.setItem(REFRESH_KEY, tokens.refreshToken);
+    document.cookie = `${TOKEN_KEY}=${tokens.accessToken}; path=/; SameSite=Lax`;
   },
   clear: (): void => {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_KEY);
+    document.cookie = `${TOKEN_KEY}=; path=/; max-age=0`;
   },
 };
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/store/auth.context';
 import Link from 'next/link';
 import {
@@ -10,9 +10,6 @@ import {
   Settings,
   LogOut,
   MapPin,
-  Bed,
-  Bath,
-  Square,
   DollarSign,
   Clock,
   CheckCircle,
@@ -22,8 +19,6 @@ import {
   Menu,
   X,
   Users,
-  Image as ImageIcon,
-  Upload,
   MessageSquare,
   Bell,
   Send,
@@ -32,7 +27,20 @@ import {
   ArrowRight,
   Building,
   ChevronRight,
+  Loader2,
 } from 'lucide-react';
+
+import {
+  listingService,
+  type ApiListing,
+  type AvailableAgent,
+  type ApiListingStatus,
+  type ListingType,
+  type PropertyType,
+} from '@/services/listing.service';
+import { ApiRequestError } from '@/lib/api-client';
+
+// ─────────────────────────── display types ───────────────────────────
 
 type ListingStatus = 'pending_review' | 'corrections_requested' | 'active' | 'inactive';
 type OfferStatus = 'pending' | 'countered' | 'accepted' | 'rejected';
@@ -43,21 +51,15 @@ interface Listing {
   description: string;
   price: number;
   location: string;
-  bedrooms: number;
-  bathrooms: number;
-  area: number;
   listingType: 'sale' | 'rent';
+  propertyType: string;
   image: string;
-  images: string[];
   status: ListingStatus;
+  apiStatus: ApiListingStatus;
   agentName: string;
   agentId: number;
   createdDate: string;
   lastModified: string;
-  views: number;
-  favorites: number;
-  offersCount: number;
-  hasInspectionReport: boolean;
   hasActiveTransaction: boolean;
   correctionNote?: string;
 }
@@ -92,172 +94,105 @@ interface Notification {
   listingId?: number;
 }
 
-const mockListings: Listing[] = [
-  {
-    id: 1,
-    title: 'Modern Luxury Villa',
-    description: 'Stunning modern villa with ocean views and premium amenities',
-    price: 1250000,
-    location: 'Beverly Hills, CA',
-    bedrooms: 5,
-    bathrooms: 4,
-    area: 4500,
-    listingType: 'sale',
-    image: 'https://images.unsplash.com/photo-1759355787092-87e4eee09600?w=600&auto=format&fit=crop',
-    images: [],
-    status: 'active',
-    agentName: 'Sarah Johnson',
-    agentId: 1,
-    createdDate: '2024-02-15',
-    lastModified: '2024-03-01',
-    views: 234,
-    favorites: 45,
-    offersCount: 3,
-    hasInspectionReport: true,
-    hasActiveTransaction: false,
-  },
-  {
-    id: 2,
-    title: 'Downtown Apartment',
-    description: 'Beautiful apartment in the heart of downtown with city views',
-    price: 850000,
-    location: 'New York, NY',
-    bedrooms: 3,
-    bathrooms: 2,
-    area: 2200,
-    listingType: 'sale',
-    image: 'https://images.unsplash.com/photo-1515263487990-61b07816b324?w=600&auto=format&fit=crop',
-    images: [],
-    status: 'pending_review',
-    agentName: 'Michael Chen',
-    agentId: 2,
-    createdDate: '2024-03-10',
-    lastModified: '2024-03-10',
-    views: 0,
-    favorites: 0,
-    offersCount: 0,
-    hasInspectionReport: false,
-    hasActiveTransaction: false,
-  },
-  {
-    id: 3,
-    title: 'Elegant Villa Estate',
-    description: 'Luxurious estate with expansive grounds and premium finishes',
-    price: 1850000,
-    location: 'Miami Beach, FL',
-    bedrooms: 6,
-    bathrooms: 5,
-    area: 5200,
-    listingType: 'sale',
-    image: 'https://images.unsplash.com/photo-1757264119066-2f627c6a6f03?w=600&auto=format&fit=crop',
-    images: [],
-    status: 'corrections_requested',
-    agentName: 'Sarah Johnson',
-    agentId: 1,
-    createdDate: '2024-03-05',
-    lastModified: '2024-03-08',
-    views: 12,
-    favorites: 2,
-    offersCount: 0,
-    hasInspectionReport: false,
-    hasActiveTransaction: false,
-    correctionNote:
-      'Please add more interior photos and update the property description to include the new renovations.',
-  },
-];
+interface ListingForm {
+  title: string;
+  description: string;
+  address: string;
+  city: string;
+  country: string;
+  askingPrice: string;
+  listingType: ListingType | '';
+  propertyType: PropertyType | '';
+  agentId: string;
+}
+
+// ─────────────────────────── constants ───────────────────────────
+
+const initialForm: ListingForm = {
+  title: '',
+  description: '',
+  address: '',
+  city: '',
+  country: '',
+  askingPrice: '',
+  listingType: '',
+  propertyType: '',
+  agentId: '',
+};
+
+const STATUS_MAP: Record<ApiListingStatus, ListingStatus> = {
+  PendingAgentReview: 'pending_review',
+  CorrectionsRequested: 'corrections_requested',
+  Active: 'active',
+  UnderOffer: 'active',
+  Suspended: 'inactive',
+  Archived: 'inactive',
+  Removed: 'inactive',
+};
+
+// ─────────────────────────── mock data (offers / notifications) ───────────────────────────
 
 const mockOffers: Offer[] = [
   {
     id: 1,
-    listingId: 1,
+    listingId: -1,
     buyerName: 'John Smith',
     proposedPrice: 1200000,
     status: 'pending',
     message: 'Very interested in this property. Would like to schedule a viewing.',
     submittedDate: '2024-03-12',
     rounds: [
-      {
-        id: 1,
-        actor: 'buyer',
-        action: 'offer',
-        amount: 1200000,
-        message: 'Initial offer, ready to close within 30 days',
-        date: '2024-03-12 10:30 AM',
-      },
-    ],
-  },
-  {
-    id: 2,
-    listingId: 1,
-    buyerName: 'Emily Rodriguez',
-    proposedPrice: 1225000,
-    status: 'countered',
-    message: 'Cash buyer, pre-approved and ready to proceed.',
-    submittedDate: '2024-03-10',
-    rounds: [
-      {
-        id: 1,
-        actor: 'buyer',
-        action: 'offer',
-        amount: 1180000,
-        message: 'Initial offer',
-        date: '2024-03-10 09:15 AM',
-      },
-      {
-        id: 2,
-        actor: 'agent',
-        action: 'counter',
-        amount: 1225000,
-        message: 'Counter offer - property recently appraised at $1.3M',
-        date: '2024-03-10 02:30 PM',
-      },
+      { id: 1, actor: 'buyer', action: 'offer', amount: 1200000, message: 'Initial offer, ready to close within 30 days', date: '2024-03-12 10:30 AM' },
     ],
   },
 ];
 
 const mockNotifications: Notification[] = [
-  {
-    id: 1,
-    type: 'offer',
-    title: 'New Offer Received',
-    message: 'John Smith submitted an offer of $1,200,000 for Modern Luxury Villa',
-    timestamp: '2024-03-12 10:30 AM',
-    read: false,
-    listingId: 1,
-  },
-  {
-    id: 2,
-    type: 'correction',
-    title: 'Corrections Requested',
-    message: 'Agent Sarah Johnson requested corrections for Elegant Villa Estate',
-    timestamp: '2024-03-08 03:15 PM',
-    read: false,
-    listingId: 3,
-  },
-  {
-    id: 3,
-    type: 'approval',
-    title: 'Listing Approved',
-    message: 'Your listing "Modern Luxury Villa" has been approved and is now active',
-    timestamp: '2024-03-01 11:20 AM',
-    read: true,
-    listingId: 1,
-  },
-  {
-    id: 4,
-    type: 'inspection',
-    title: 'Inspection Report Available',
-    message: 'Inspection report for Modern Luxury Villa is now available for review',
-    timestamp: '2024-02-28 09:00 AM',
-    read: true,
-    listingId: 1,
-  },
+  { id: 1, type: 'offer',      title: 'New Offer Received',         message: 'You received a new offer on one of your listings.',        timestamp: '2 hours ago',   read: false },
+  { id: 2, type: 'correction', title: 'Corrections Requested',      message: 'Your agent has requested corrections on a listing.',        timestamp: '1 day ago',     read: false },
+  { id: 3, type: 'approval',   title: 'Listing Approved',           message: 'Your listing has been approved and is now live.',           timestamp: '3 days ago',    read: true  },
+  { id: 4, type: 'inspection', title: 'Inspection Report Ready',    message: 'The inspection report for your property is now available.', timestamp: '5 days ago',    read: true  },
+  { id: 5, type: 'message',    title: 'Message from Agent',         message: 'Your agent sent you a message regarding your listing.',     timestamp: '1 week ago',    read: true  },
 ];
+
+// ─────────────────────────── mapper ───────────────────────────
+
+function mapApiToDisplay(a: ApiListing, agents: AvailableAgent[]): Listing {
+  const agent = agents.find((ag) => ag.userId === a.agentId);
+  return {
+    id: a.listingId,
+    title: a.title,
+    description: a.description,
+    price: a.askingPrice,
+    location: `${a.city}, ${a.country}`,
+    listingType: a.listingType.toLowerCase() as 'sale' | 'rent',
+    propertyType: a.propertyType,
+    image: a.photos[0]?.photoUrl ?? '',
+    status: STATUS_MAP[a.status] ?? 'inactive',
+    apiStatus: a.status,
+    agentName: agent
+      ? `${agent.firstName} ${agent.lastName}`
+      : a.agentId
+        ? `Agent #${a.agentId}`
+        : 'Unassigned',
+    agentId: a.agentId ?? 0,
+    createdDate: a.createdAt,
+    lastModified: a.updatedAt,
+    hasActiveTransaction: a.status === 'UnderOffer',
+    correctionNote: a.correctionNotes ?? undefined,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//                        COMPONENT
+// ═══════════════════════════════════════════════════════════════
 
 export default function OwnerDashboardPage() {
   const { user, logout } = useAuth();
   const fullName = user ? `${user.firstName} ${user.lastName}` : 'Loading...';
   const initials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : '?';
+
+  // ── tab / ui state
   const [activeTab, setActiveTab] = useState<
     'dashboard' | 'create' | 'manage' | 'offers' | 'inspection' | 'messages'
   >('dashboard');
@@ -266,23 +201,55 @@ export default function OwnerDashboardPage() {
   const [messageText, setMessageText] = useState('');
   const [notifications, setNotifications] = useState(mockNotifications);
 
+  // ── api state
+  const [apiListings, setApiListings] = useState<ApiListing[]>([]);
+  const [agents, setAgents] = useState<AvailableAgent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // ── form state
+  const [editingListingId, setEditingListingId] = useState<number | null>(null);
+  const [form, setForm] = useState<ListingForm>(initialForm);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // ── derived
+  const displayListings = apiListings.map((l) => mapApiToDisplay(l, agents));
+
+  // ── data loading
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const [listings, agentList] = await Promise.all([
+        listingService.getMyListings(),
+        listingService.getAgents(),
+      ]);
+      setApiListings(listings);
+      setAgents(agentList);
+    } catch (err) {
+      setLoadError(
+        err instanceof ApiRequestError ? err.apiError.message : 'Failed to load data.',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // ── helpers
   const formatPrice = (price: number) =>
-    new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-    }).format(price);
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(price);
 
   const getStatusConfig = (status: ListingStatus) => {
     switch (status) {
-      case 'active':
-        return { label: 'Active', color: 'bg-green-100 text-green-700 border-green-300', icon: CheckCircle };
-      case 'pending_review':
-        return { label: 'Pending Agent Review', color: 'bg-yellow-100 text-yellow-700 border-yellow-300', icon: Clock };
-      case 'corrections_requested':
-        return { label: 'Corrections Requested', color: 'bg-orange-100 text-orange-700 border-orange-300', icon: AlertCircle };
-      case 'inactive':
-        return { label: 'Inactive', color: 'bg-gray-100 text-gray-700 border-gray-300', icon: XCircle };
+      case 'active':                return { label: 'Active',                color: 'bg-green-100 text-green-700 border-green-300',   icon: CheckCircle };
+      case 'pending_review':        return { label: 'Pending Agent Review',  color: 'bg-yellow-100 text-yellow-700 border-yellow-300', icon: Clock };
+      case 'corrections_requested': return { label: 'Corrections Requested', color: 'bg-orange-100 text-orange-700 border-orange-300', icon: AlertCircle };
+      case 'inactive':              return { label: 'Inactive',              color: 'bg-gray-100 text-gray-700 border-gray-300',       icon: XCircle };
     }
   };
 
@@ -295,19 +262,105 @@ export default function OwnerDashboardPage() {
     }
   };
 
-  const handleRemoveListing = (listing: Listing) => {
+  // ── actions
+  const handleRemoveListing = async (listing: Listing) => {
     if (listing.hasActiveTransaction) {
-      alert('Cannot remove listing: Active transaction in progress. Please contact your agent.');
+      alert('Cannot remove listing: active transaction in progress. Please contact your agent.');
       return;
     }
-    if (window.confirm(`Are you sure you want to permanently remove "${listing.title}"?`)) {
-      console.log('Removing listing:', listing.id);
+    if (!window.confirm(`Are you sure you want to permanently remove "${listing.title}"?`)) return;
+    try {
+      await listingService.deleteListing(listing.id);
+      if (selectedListing?.id === listing.id) setSelectedListing(null);
+      await loadData();
+    } catch (err) {
+      alert(err instanceof ApiRequestError ? err.apiError.message : 'Failed to remove listing.');
     }
   };
 
+  const handleEditListing = (listing: Listing) => {
+    const raw = apiListings.find((l) => l.listingId === listing.id);
+    if (!raw) return;
+    setForm({
+      title: raw.title,
+      description: raw.description,
+      address: raw.address,
+      city: raw.city,
+      country: raw.country,
+      askingPrice: String(raw.askingPrice),
+      listingType: raw.listingType,
+      propertyType: raw.propertyType,
+      agentId: '',
+    });
+    setEditingListingId(listing.id);
+    setFormError(null);
+    setActiveTab('create');
+  };
+
+  const handleSubmitForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.listingType || !form.propertyType) {
+      setFormError('Please select a listing type and property type.');
+      return;
+    }
+    const price = parseFloat(form.askingPrice);
+    if (isNaN(price) || price <= 0) {
+      setFormError('Please enter a valid asking price.');
+      return;
+    }
+    setIsSubmitting(true);
+    setFormError(null);
+    try {
+      if (editingListingId !== null) {
+        await listingService.updateListing(editingListingId, {
+          title: form.title,
+          description: form.description,
+          address: form.address,
+          city: form.city,
+          country: form.country,
+          askingPrice: price,
+          listingType: form.listingType as ListingType,
+          propertyType: form.propertyType as PropertyType,
+          photoUrls: [],
+        });
+      } else {
+        if (!form.agentId) {
+          setFormError('Please select an agent.');
+          setIsSubmitting(false);
+          return;
+        }
+        await listingService.createListing({
+          title: form.title,
+          description: form.description,
+          address: form.address,
+          city: form.city,
+          country: form.country,
+          askingPrice: price,
+          listingType: form.listingType as ListingType,
+          propertyType: form.propertyType as PropertyType,
+          agentId: parseInt(form.agentId),
+          photoUrls: [],
+        });
+      }
+      setForm(initialForm);
+      setEditingListingId(null);
+      await loadData();
+      setActiveTab('manage');
+    } catch (err) {
+      setFormError(
+        err instanceof ApiRequestError ? err.apiError.message : 'Failed to save listing. Please try again.',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const updateForm = (field: keyof ListingForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+    setForm((f) => ({ ...f, [field]: e.target.value }));
+
+  // ── sidebar
   const Sidebar = () => (
     <div className="h-full bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 flex flex-col shadow-2xl">
-      {/* Logo */}
       <div className="p-6 border-b border-blue-500/30">
         <Link href="/" className="flex items-center gap-3">
           <div className="p-2 rounded-xl bg-white shadow-lg">
@@ -325,7 +378,6 @@ export default function OwnerDashboardPage() {
         </Link>
       </div>
 
-      {/* User Profile */}
       <div className="p-6 border-b border-blue-500/30">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-blue-600 text-lg font-bold shadow-lg">
@@ -338,13 +390,12 @@ export default function OwnerDashboardPage() {
         </div>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 p-4 space-y-2">
         {[
-          { tab: 'dashboard', icon: <Home size={20} />, label: 'Dashboard' },
-          { tab: 'create', icon: <Plus size={20} />, label: 'Create Listing' },
-          { tab: 'manage', icon: <Building size={20} />, label: 'Manage Listings', count: mockListings.length },
-          { tab: 'messages', icon: <MessageSquare size={20} />, label: 'Messages' },
+          { tab: 'dashboard', icon: <Home size={20} />,        label: 'Dashboard' },
+          { tab: 'create',    icon: <Plus size={20} />,        label: 'Create Listing' },
+          { tab: 'manage',    icon: <Building size={20} />,    label: 'Manage Listings', count: displayListings.length },
+          { tab: 'messages',  icon: <MessageSquare size={20} />, label: 'Messages' },
         ].map(({ tab, icon, label, count }) => (
           <button
             key={tab}
@@ -364,13 +415,15 @@ export default function OwnerDashboardPage() {
         ))}
       </nav>
 
-      {/* Bottom Actions */}
       <div className="p-4 border-t border-blue-500/30 space-y-2">
         <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-white hover:bg-blue-500/30 transition-all">
           <Settings size={20} />
           Settings
         </button>
-        <button onClick={() => logout()} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-red-300 hover:bg-red-500/10 transition-all">
+        <button
+          onClick={() => logout()}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-red-300 hover:bg-red-500/10 transition-all"
+        >
           <LogOut size={20} />
           Sign Out
         </button>
@@ -378,17 +431,42 @@ export default function OwnerDashboardPage() {
     </div>
   );
 
+  // ── loading / error skeleton
+  const LoadingState = () => (
+    <div className="flex items-center justify-center py-20">
+      <div className="text-center">
+        <Loader2 className="mx-auto text-blue-600 mb-4 animate-spin" size={40} />
+        <p className="text-gray-600 font-semibold">Loading your listings…</p>
+      </div>
+    </div>
+  );
+
+  const ErrorState = ({ message }: { message: string }) => (
+    <div className="flex items-center justify-center py-20">
+      <div className="text-center max-w-md">
+        <AlertCircle className="mx-auto text-red-500 mb-4" size={40} />
+        <p className="text-gray-900 font-semibold mb-2">Failed to load listings</p>
+        <p className="text-sm text-gray-600 mb-4">{message}</p>
+        <button
+          onClick={loadData}
+          className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors"
+        >
+          Try Again
+        </button>
+      </div>
+    </div>
+  );
+
+  // ════════════════════════════════════════
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-200 via-gray-100 to-gray-200 flex">
+
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div className="lg:hidden fixed inset-0 bg-black/50 z-40" onClick={() => setSidebarOpen(false)}>
           <div className="absolute left-0 top-0 h-full w-80" onClick={(e) => e.stopPropagation()}>
             <div className="absolute top-4 right-4 z-50">
-              <button
-                onClick={() => setSidebarOpen(false)}
-                className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
-              >
+              <button onClick={() => setSidebarOpen(false)} className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
                 <X size={24} className="text-white" />
               </button>
             </div>
@@ -411,25 +489,22 @@ export default function OwnerDashboardPage() {
           <div className="px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <button
-                  onClick={() => setSidebarOpen(true)}
-                  className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
+                <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors">
                   <Menu size={24} className="text-gray-700" />
                 </button>
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900">
-                    {activeTab === 'dashboard' && 'Property Dashboard'}
-                    {activeTab === 'create' && 'Create New Listing'}
-                    {activeTab === 'manage' && 'Manage Listings'}
-                    {activeTab === 'offers' && `Offers — ${selectedListing?.title}`}
+                    {activeTab === 'dashboard'  && 'Property Dashboard'}
+                    {activeTab === 'create'     && (editingListingId ? 'Edit Listing' : 'Create New Listing')}
+                    {activeTab === 'manage'     && 'Manage Listings'}
+                    {activeTab === 'offers'     && `Offers — ${selectedListing?.title}`}
                     {activeTab === 'inspection' && `Inspection Report — ${selectedListing?.title}`}
-                    {activeTab === 'messages' && 'Messages'}
+                    {activeTab === 'messages'   && 'Messages'}
                   </h1>
                   <p className="text-sm text-gray-600 mt-0.5">
                     {activeTab === 'dashboard' && 'Overview of all your listings and activity'}
-                    {activeTab === 'create' && 'Add a new property to your portfolio'}
-                    {activeTab === 'manage' && 'Edit and manage your property listings'}
+                    {activeTab === 'create'    && (editingListingId ? 'Update your listing details and resubmit for review' : 'Add a new property to your portfolio')}
+                    {activeTab === 'manage'    && 'Edit and manage your property listings'}
                   </p>
                 </div>
               </div>
@@ -463,75 +538,85 @@ export default function OwnerDashboardPage() {
                       </button>
                     </div>
 
-                    <div className="space-y-4">
-                      {mockListings.map((listing) => {
-                        const statusConfig = getStatusConfig(listing.status);
-                        const StatusIcon = statusConfig.icon;
-                        return (
-                          <div key={listing.id} className="p-4 bg-gray-50 rounded-xl border border-gray-200 hover:shadow-md transition-all">
-                            <div className="flex gap-4">
-                              <div className="w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden">
-                                <img
-                                  src={listing.image}
-                                  alt={listing.title}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => ((e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg')}
-                                />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-start justify-between mb-2">
-                                  <div className="flex-1 min-w-0">
-                                    <h3 className="font-bold text-gray-900 truncate">{listing.title}</h3>
-                                    <p className="text-sm text-gray-600 flex items-center gap-1">
-                                      <MapPin size={14} />{listing.location}
-                                    </p>
-                                  </div>
-                                  <p className="font-bold text-blue-600 ml-3">{formatPrice(listing.price)}</p>
-                                </div>
+                    {isLoading && <LoadingState />}
+                    {loadError && <ErrorState message={loadError} />}
 
-                                <div className="flex items-center gap-4 mb-3">
-                                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full border ${statusConfig.color}`}>
-                                    <StatusIcon size={14} />
-                                    {statusConfig.label}
-                                  </span>
-                                  <span className="text-xs text-gray-500">Agent: {listing.agentName}</span>
-                                </div>
+                    {!isLoading && !loadError && displayListings.length === 0 && (
+                      <div className="text-center py-12">
+                        <Building className="mx-auto text-gray-400 mb-4" size={48} />
+                        <p className="text-gray-600 font-semibold">No listings yet</p>
+                        <p className="text-sm text-gray-500 mb-4">Create your first listing to get started.</p>
+                        <button
+                          onClick={() => setActiveTab('create')}
+                          className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors"
+                        >
+                          Create Listing
+                        </button>
+                      </div>
+                    )}
 
-                                {listing.status === 'corrections_requested' && listing.correctionNote && (
-                                  <div className="mb-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                                    <p className="text-xs font-semibold text-orange-900 mb-1">Correction Note:</p>
-                                    <p className="text-xs text-orange-800">{listing.correctionNote}</p>
-                                  </div>
-                                )}
-
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <button
-                                    onClick={() => { setSelectedListing(listing); setActiveTab('offers'); }}
-                                    className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                                  >
-                                    View Offers ({listing.offersCount})
-                                  </button>
-                                  {listing.hasInspectionReport && (
-                                    <button
-                                      onClick={() => { setSelectedListing(listing); setActiveTab('inspection'); }}
-                                      className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
-                                    >
-                                      Inspection Report
-                                    </button>
+                    {!isLoading && !loadError && (
+                      <div className="space-y-4">
+                        {displayListings.map((listing) => {
+                          const statusConfig = getStatusConfig(listing.status);
+                          const StatusIcon = statusConfig.icon;
+                          return (
+                            <div key={listing.id} className="p-4 bg-gray-50 rounded-xl border border-gray-200 hover:shadow-md transition-all">
+                              <div className="flex gap-4">
+                                <div className="w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden bg-gray-200">
+                                  {listing.image ? (
+                                    <img src={listing.image} alt={listing.title} className="w-full h-full object-cover"
+                                      onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')} />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                      <Building size={32} className="text-gray-400" />
+                                    </div>
                                   )}
-                                  <button
-                                    onClick={() => { setSelectedListing(listing); setActiveTab('messages'); }}
-                                    className="text-xs px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium flex items-center"
-                                  >
-                                    <MessageSquare size={14} />
-                                  </button>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div className="flex-1 min-w-0">
+                                      <h3 className="font-bold text-gray-900 truncate">{listing.title}</h3>
+                                      <p className="text-sm text-gray-600 flex items-center gap-1">
+                                        <MapPin size={14} />{listing.location}
+                                      </p>
+                                    </div>
+                                    <p className="font-bold text-blue-600 ml-3">{formatPrice(listing.price)}</p>
+                                  </div>
+
+                                  <div className="flex items-center gap-4 mb-3">
+                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full border ${statusConfig.color}`}>
+                                      <StatusIcon size={14} />
+                                      {statusConfig.label}
+                                    </span>
+                                    {listing.agentName !== 'Unassigned' && (
+                                      <span className="text-xs text-gray-500">Agent: {listing.agentName}</span>
+                                    )}
+                                  </div>
+
+                                  {listing.status === 'corrections_requested' && listing.correctionNote && (
+                                    <div className="mb-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                                      <p className="text-xs font-semibold text-orange-900 mb-1">Correction Note:</p>
+                                      <p className="text-xs text-orange-800">{listing.correctionNote}</p>
+                                    </div>
+                                  )}
+
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <button
+                                      onClick={() => { setSelectedListing(listing); setActiveTab('messages'); }}
+                                      className="text-xs px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium flex items-center gap-1"
+                                    >
+                                      <MessageSquare size={14} />
+                                      Message Agent
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -546,9 +631,7 @@ export default function OwnerDashboardPage() {
                       <div
                         key={notification.id}
                         onClick={() => setNotifications(notifications.map((n) => n.id === notification.id ? { ...n, read: true } : n))}
-                        className={`p-4 rounded-xl border transition-all cursor-pointer ${
-                          notification.read ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'
-                        }`}
+                        className={`p-4 rounded-xl border transition-all cursor-pointer ${notification.read ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}
                       >
                         <div className="flex items-start gap-3">
                           <div className={`p-2 rounded-lg ${
@@ -569,9 +652,7 @@ export default function OwnerDashboardPage() {
                             <p className="text-xs text-gray-600 mb-2">{notification.message}</p>
                             <p className="text-xs text-gray-500">{notification.timestamp}</p>
                           </div>
-                          {!notification.read && (
-                            <div className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-1" />
-                          )}
+                          {!notification.read && <div className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-1" />}
                         </div>
                       </div>
                     ))}
@@ -581,93 +662,180 @@ export default function OwnerDashboardPage() {
             </div>
           )}
 
-          {/* ── Create Listing Tab ── */}
+          {/* ── Create / Edit Listing Tab ── */}
           {activeTab === 'create' && (
             <div className="max-w-4xl mx-auto">
               <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
-                <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
-                  {/* Images */}
-                  <div>
-                    <label className="block text-sm font-bold text-gray-900 mb-3">Property Images *</label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-500 transition-colors cursor-pointer bg-gray-50">
-                      <ImageIcon className="mx-auto text-gray-400 mb-3" size={48} />
-                      <p className="text-gray-700 font-medium mb-2">Click to upload or drag and drop</p>
-                      <p className="text-sm text-gray-500 mb-4">PNG, JPG up to 10MB each (minimum 6 images required)</p>
-                      <button type="button" className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors inline-flex items-center gap-2">
-                        <Upload size={20} />
-                        Choose Files
-                      </button>
-                    </div>
+
+                {editingListingId && (
+                  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between">
+                    <p className="text-sm font-semibold text-blue-900">
+                      Editing listing — update the details and resubmit for agent review.
+                    </p>
+                    <button
+                      onClick={() => { setEditingListingId(null); setForm(initialForm); setFormError(null); }}
+                      className="text-sm text-blue-700 underline ml-4"
+                    >
+                      Cancel Edit
+                    </button>
                   </div>
+                )}
+
+                {formError && (
+                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
+                    <AlertCircle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-red-700">{formError}</p>
+                  </div>
+                )}
+
+                <form className="space-y-6" onSubmit={handleSubmitForm}>
 
                   {/* Title */}
                   <div>
                     <label className="block text-sm font-bold text-gray-900 mb-3">Property Title *</label>
-                    <input type="text" placeholder="e.g., Modern Luxury Villa with Ocean Views" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required />
+                    <input
+                      type="text"
+                      value={form.title}
+                      onChange={updateForm('title')}
+                      placeholder="e.g., Modern Luxury Villa with Ocean Views"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    />
                   </div>
 
                   {/* Description */}
                   <div>
                     <label className="block text-sm font-bold text-gray-900 mb-3">Property Description *</label>
-                    <textarea rows={6} placeholder="Provide a detailed description of your property including features, amenities, and unique selling points..." className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none" required />
+                    <textarea
+                      rows={6}
+                      value={form.description}
+                      onChange={updateForm('description')}
+                      placeholder="Provide a detailed description including features, amenities, and unique selling points…"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                      required
+                    />
                   </div>
 
-                  {/* Location */}
+                  {/* Street Address */}
                   <div>
-                    <label className="block text-sm font-bold text-gray-900 mb-3">Location *</label>
+                    <label className="block text-sm font-bold text-gray-900 mb-3">Street Address *</label>
                     <div className="relative">
                       <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                      <input type="text" placeholder="City, State, ZIP Code" className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required />
+                      <input
+                        type="text"
+                        value={form.address}
+                        onChange={updateForm('address')}
+                        placeholder="e.g., 123 Sunset Boulevard"
+                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      />
                     </div>
                   </div>
 
-                  {/* Price & Type */}
+                  {/* City / Country */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-900 mb-3">City *</label>
+                      <input
+                        type="text"
+                        value={form.city}
+                        onChange={updateForm('city')}
+                        placeholder="e.g., Los Angeles"
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-900 mb-3">Country *</label>
+                      <input
+                        type="text"
+                        value={form.country}
+                        onChange={updateForm('country')}
+                        placeholder="e.g., United States"
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Price / Listing Type / Property Type */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div>
                       <label className="block text-sm font-bold text-gray-900 mb-3">Asking Price (USD) *</label>
                       <div className="relative">
                         <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                        <input type="text" placeholder="1,250,000" className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required />
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={form.askingPrice}
+                          onChange={updateForm('askingPrice')}
+                          placeholder="1250000"
+                          className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          required
+                        />
                       </div>
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-gray-900 mb-3">Listing Type *</label>
-                      <select className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white" required>
-                        <option value="">Select listing type</option>
-                        <option value="sale">For Sale</option>
-                        <option value="rent">For Rent</option>
+                      <select
+                        value={form.listingType}
+                        onChange={updateForm('listingType')}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                        required
+                      >
+                        <option value="">Select type</option>
+                        <option value="Sale">For Sale</option>
+                        <option value="Rent">For Rent</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-900 mb-3">Property Type *</label>
+                      <select
+                        value={form.propertyType}
+                        onChange={updateForm('propertyType')}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                        required
+                      >
+                        <option value="">Select property type</option>
+                        <option value="Apartment">Apartment</option>
+                        <option value="House">House</option>
+                        <option value="Commercial">Commercial</option>
+                        <option value="Land">Land</option>
+                        <option value="Other">Other</option>
                       </select>
                     </div>
                   </div>
 
-                  {/* Specs */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Agent (create only) */}
+                  {!editingListingId && (
                     <div>
-                      <label className="block text-sm font-bold text-gray-900 mb-3">Bedrooms *</label>
-                      <input type="number" placeholder="5" min="0" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required />
+                      <label className="block text-sm font-bold text-gray-900 mb-3">Select Agent for Review *</label>
+                      {agents.length === 0 ? (
+                        <p className="text-sm text-gray-500 italic py-3">
+                          No verified agents are available at the moment. Please try again later.
+                        </p>
+                      ) : (
+                        <select
+                          value={form.agentId}
+                          onChange={updateForm('agentId')}
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                          required
+                        >
+                          <option value="">Choose an agent</option>
+                          {agents.map((agent) => (
+                            <option key={agent.userId} value={agent.userId}>
+                              {agent.firstName} {agent.lastName}
+                              {agent.agencyName ? ` — ${agent.agencyName}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      <p className="mt-2 text-sm text-gray-600">
+                        The selected agent will review your listing before it goes live.
+                      </p>
                     </div>
-                    <div>
-                      <label className="block text-sm font-bold text-gray-900 mb-3">Bathrooms *</label>
-                      <input type="number" placeholder="4" min="0" step="0.5" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-gray-900 mb-3">Area (sq ft) *</label>
-                      <input type="number" placeholder="4500" min="0" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required />
-                    </div>
-                  </div>
-
-                  {/* Agent */}
-                  <div>
-                    <label className="block text-sm font-bold text-gray-900 mb-3">Select Agent for Review *</label>
-                    <select className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white" required>
-                      <option value="">Choose an agent</option>
-                      <option value="1">Sarah Johnson — Beverly Hills Specialist</option>
-                      <option value="2">Michael Chen — Downtown Expert</option>
-                      <option value="3">Emily Rodriguez — Luxury Properties</option>
-                      <option value="4">David Park — Commercial & Residential</option>
-                    </select>
-                    <p className="mt-2 text-sm text-gray-600">The selected agent will review your listing before it goes live.</p>
-                  </div>
+                  )}
 
                   {/* Submit */}
                   <div className="pt-6 border-t border-gray-200">
@@ -675,19 +843,30 @@ export default function OwnerDashboardPage() {
                       <p className="text-sm font-semibold text-blue-900 mb-2">Before submitting:</p>
                       <ul className="text-sm text-blue-800 space-y-1">
                         <li>• Ensure all information is accurate and complete</li>
-                        <li>• Upload high-quality photos (minimum 6 images)</li>
-                        <li>• Review property description for clarity</li>
-                        <li>• Verify contact information is current</li>
+                        <li>• Review your property description for clarity</li>
+                        <li>• Verify address details are correct</li>
                       </ul>
                     </div>
                     <div className="flex gap-4">
-                      <button type="submit" className="flex-1 py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2">
-                        Submit for Agent Review
-                        <ArrowRight size={20} />
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="flex-1 py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {isSubmitting
+                          ? <><Loader2 size={20} className="animate-spin" /> Submitting…</>
+                          : <>{editingListingId ? 'Resubmit for Agent Review' : 'Submit for Agent Review'} <ArrowRight size={20} /></>
+                        }
                       </button>
-                      <button type="button" className="px-8 py-4 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors">
-                        Save as Draft
-                      </button>
+                      {editingListingId && (
+                        <button
+                          type="button"
+                          onClick={() => { setEditingListingId(null); setForm(initialForm); setFormError(null); setActiveTab('manage'); }}
+                          className="px-8 py-4 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      )}
                     </div>
                   </div>
                 </form>
@@ -697,106 +876,130 @@ export default function OwnerDashboardPage() {
 
           {/* ── Manage Listings Tab ── */}
           {activeTab === 'manage' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {mockListings.map((listing) => {
-                const statusConfig = getStatusConfig(listing.status);
-                const StatusIcon = statusConfig.icon;
-                const canEdit = listing.status === 'pending_review' || listing.status === 'corrections_requested';
+            <>
+              {isLoading && <LoadingState />}
+              {loadError && <ErrorState message={loadError} />}
 
-                return (
-                  <div key={listing.id} className="bg-white rounded-2xl overflow-hidden border border-gray-200 hover:shadow-xl transition-all">
-                    <div className="relative h-48 overflow-hidden">
-                      <img
-                        src={listing.image}
-                        alt={listing.title}
-                        className="w-full h-full object-cover"
-                        onError={(e) => ((e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg')}
-                      />
-                      <div className="absolute top-3 right-3">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border backdrop-blur-sm ${statusConfig.color}`}>
-                          <StatusIcon size={14} />
-                          {statusConfig.label}
-                        </span>
+              {!isLoading && !loadError && displayListings.length === 0 && (
+                <div className="text-center py-20">
+                  <Building className="mx-auto text-gray-400 mb-4" size={56} />
+                  <p className="text-gray-600 font-semibold text-lg mb-2">No listings yet</p>
+                  <p className="text-sm text-gray-500 mb-6">Create your first listing to start attracting buyers.</p>
+                  <button
+                    onClick={() => setActiveTab('create')}
+                    className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2 mx-auto"
+                  >
+                    <Plus size={20} /> Create Listing
+                  </button>
+                </div>
+              )}
+
+              {!isLoading && !loadError && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {displayListings.map((listing) => {
+                    const statusConfig = getStatusConfig(listing.status);
+                    const StatusIcon = statusConfig.icon;
+                    const canEdit = listing.apiStatus === 'PendingAgentReview' || listing.apiStatus === 'CorrectionsRequested';
+
+                    return (
+                      <div key={listing.id} className="bg-white rounded-2xl overflow-hidden border border-gray-200 hover:shadow-xl transition-all">
+                        <div className="relative h-48 overflow-hidden bg-gray-200">
+                          {listing.image ? (
+                            <img src={listing.image} alt={listing.title} className="w-full h-full object-cover"
+                              onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')} />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Building size={48} className="text-gray-400" />
+                            </div>
+                          )}
+                          <div className="absolute top-3 right-3">
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border backdrop-blur-sm ${statusConfig.color}`}>
+                              <StatusIcon size={14} />
+                              {statusConfig.label}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="p-5">
+                          <p className="text-2xl font-bold text-blue-600 mb-2">{formatPrice(listing.price)}</p>
+                          <h3 className="text-lg font-bold text-gray-900 mb-1 line-clamp-1">{listing.title}</h3>
+                          <div className="flex items-center gap-2 text-gray-600 mb-3">
+                            <MapPin size={16} />
+                            <span className="text-sm line-clamp-1">{listing.location}</span>
+                          </div>
+
+                          <div className="flex items-center gap-2 mb-4">
+                            <span className="px-2.5 py-1 bg-gray-100 text-gray-700 text-xs font-semibold rounded-full capitalize">
+                              {listing.propertyType}
+                            </span>
+                            <span className="px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-semibold rounded-full capitalize">
+                              For {listing.listingType}
+                            </span>
+                          </div>
+
+                          {listing.agentName !== 'Unassigned' && (
+                            <p className="text-xs text-gray-500 mb-4">Agent: {listing.agentName}</p>
+                          )}
+
+                          {listing.status === 'corrections_requested' && listing.correctionNote && (
+                            <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                              <p className="text-xs font-bold text-orange-900 mb-1">Agent Notes:</p>
+                              <p className="text-xs text-orange-800">{listing.correctionNote}</p>
+                            </div>
+                          )}
+
+                          {listing.apiStatus === 'Active' && (
+                            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                              <p className="text-xs font-semibold text-blue-900">
+                                To edit this listing, please contact your agent through the messaging panel.
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="space-y-2">
+                            {canEdit ? (
+                              <>
+                                <button
+                                  onClick={() => handleEditListing(listing)}
+                                  className="w-full py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                                >
+                                  <Edit size={16} />
+                                  Edit &amp; Resubmit
+                                </button>
+                                <button
+                                  onClick={() => handleRemoveListing(listing)}
+                                  className="w-full py-2.5 bg-red-50 text-red-600 font-semibold rounded-xl hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
+                                >
+                                  <Trash2 size={16} />
+                                  Remove Listing
+                                </button>
+                              </>
+                            ) : listing.apiStatus === 'Active' || listing.apiStatus === 'UnderOffer' ? (
+                              <>
+                                <button
+                                  onClick={() => { setSelectedListing(listing); setActiveTab('messages'); }}
+                                  className="w-full py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                                >
+                                  <MessageSquare size={16} />
+                                  Contact Agent
+                                </button>
+                                <button
+                                  onClick={() => handleRemoveListing(listing)}
+                                  className="w-full py-2.5 bg-red-50 text-red-600 font-semibold rounded-xl hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
+                                >
+                                  <Trash2 size={16} />
+                                  Request Removal
+                                </button>
+                              </>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-
-                    <div className="p-5">
-                      <p className="text-2xl font-bold text-blue-600 mb-2">{formatPrice(listing.price)}</p>
-                      <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-1">{listing.title}</h3>
-                      <div className="flex items-center gap-2 text-gray-600 mb-4">
-                        <MapPin size={16} />
-                        <span className="text-sm line-clamp-1">{listing.location}</span>
-                      </div>
-
-                      <div className="flex items-center justify-between py-3 border-t border-b border-gray-100 mb-4">
-                        <div className="flex items-center gap-1.5 text-gray-700">
-                          <Bed size={18} className="text-blue-600" />
-                          <span className="text-sm font-semibold">{listing.bedrooms}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-gray-700">
-                          <Bath size={18} className="text-blue-600" />
-                          <span className="text-sm font-semibold">{listing.bathrooms}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-gray-700">
-                          <Square size={18} className="text-blue-600" />
-                          <span className="text-sm font-semibold">{listing.area}</span>
-                        </div>
-                      </div>
-
-                      {listing.status === 'corrections_requested' && listing.correctionNote && (
-                        <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                          <p className="text-xs font-bold text-orange-900 mb-1">Agent Notes:</p>
-                          <p className="text-xs text-orange-800">{listing.correctionNote}</p>
-                        </div>
-                      )}
-
-                      {listing.status === 'active' && (
-                        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                          <p className="text-xs font-semibold text-blue-900">
-                            To edit this listing, please contact your agent {listing.agentName} through the messaging panel.
-                          </p>
-                        </div>
-                      )}
-
-                      <div className="space-y-2">
-                        {canEdit ? (
-                          <>
-                            <button className="w-full py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
-                              <Edit size={16} />
-                              Edit & Resubmit
-                            </button>
-                            <button
-                              onClick={() => handleRemoveListing(listing)}
-                              className="w-full py-2.5 bg-red-50 text-red-600 font-semibold rounded-xl hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
-                            >
-                              <Trash2 size={16} />
-                              Remove Listing
-                            </button>
-                          </>
-                        ) : listing.status === 'active' ? (
-                          <>
-                            <button
-                              onClick={() => { setSelectedListing(listing); setActiveTab('messages'); }}
-                              className="w-full py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                            >
-                              <MessageSquare size={16} />
-                              Contact Agent
-                            </button>
-                            <button
-                              onClick={() => handleRemoveListing(listing)}
-                              className="w-full py-2.5 bg-red-50 text-red-600 font-semibold rounded-xl hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
-                            >
-                              <Trash2 size={16} />
-                              Request Removal
-                            </button>
-                          </>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
 
           {/* ── Offers Tab ── */}
@@ -890,10 +1093,7 @@ export default function OwnerDashboardPage() {
           {/* ── Inspection Report Tab ── */}
           {activeTab === 'inspection' && selectedListing && (
             <div className="max-w-4xl mx-auto space-y-6">
-              <button
-                onClick={() => setActiveTab('dashboard')}
-                className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold mb-4"
-              >
+              <button onClick={() => setActiveTab('dashboard')} className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold mb-4">
                 <ChevronRight size={20} className="rotate-180" />
                 Back to Dashboard
               </button>
@@ -936,8 +1136,7 @@ export default function OwnerDashboardPage() {
                           </span>
                           <span className={`px-3 py-1 text-xs font-bold rounded-full ${
                             item.severity === 'Low' ? 'bg-blue-100 text-blue-700' :
-                            item.severity === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-red-100 text-red-700'
+                            item.severity === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
                           }`}>
                             {item.severity}
                           </span>
@@ -975,21 +1174,22 @@ export default function OwnerDashboardPage() {
                     <select
                       className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
                       onChange={(e) => {
-                        const listing = mockListings.find((l) => l.id === parseInt(e.target.value));
-                        setSelectedListing(listing || null);
+                        const listing = displayListings.find((l) => l.id === parseInt(e.target.value));
+                        setSelectedListing(listing ?? null);
                       }}
-                      value={selectedListing?.id || ''}
+                      value={selectedListing?.id ?? ''}
                     >
                       <option value="">Choose a listing to message about</option>
-                      {mockListings.map((listing) => (
+                      {displayListings.map((listing) => (
                         <option key={listing.id} value={listing.id}>
-                          {listing.title} — Agent: {listing.agentName}
+                          {listing.title}
+                          {listing.agentName !== 'Unassigned' ? ` — Agent: ${listing.agentName}` : ''}
                         </option>
                       ))}
                     </select>
                   </div>
 
-                  {selectedListing && (
+                  {selectedListing && selectedListing.agentName !== 'Unassigned' && (
                     <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-gray-200">
                       <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
                         {selectedListing.agentName.charAt(0)}
@@ -1013,10 +1213,10 @@ export default function OwnerDashboardPage() {
                         <div className="flex-1">
                           <div className="bg-white rounded-2xl rounded-tl-none p-4 border border-gray-200 shadow-sm">
                             <p className="text-sm text-gray-900">
-                              Hello! I've reviewed your listing and it looks great. I have a few minor suggestions to improve the photos. Can you add some exterior shots?
+                              Hello! I've reviewed your listing. Please use the messaging feature here once messaging is fully connected to the backend.
                             </p>
                           </div>
-                          <p className="text-xs text-gray-500 mt-1 ml-1">March 8, 2024 at 2:30 PM</p>
+                          <p className="text-xs text-gray-500 mt-1 ml-1">Messages coming soon</p>
                         </div>
                       </div>
 
@@ -1024,10 +1224,10 @@ export default function OwnerDashboardPage() {
                         <div className="flex-1 max-w-md">
                           <div className="bg-blue-600 rounded-2xl rounded-tr-none p-4 shadow-sm">
                             <p className="text-sm text-white">
-                              Thank you for the feedback! I'll upload additional exterior photos today. Should I include night-time shots as well?
+                              Thank you! I'll be in touch soon.
                             </p>
                           </div>
-                          <p className="text-xs text-gray-500 mt-1 mr-1 text-right">March 8, 2024 at 3:45 PM</p>
+                          <p className="text-xs text-gray-500 mt-1 mr-1 text-right">Messages coming soon</p>
                         </div>
                         <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-gray-700 text-sm font-bold flex-shrink-0">
                           {initials}
@@ -1060,7 +1260,7 @@ export default function OwnerDashboardPage() {
                     >
                       <input
                         type="text"
-                        placeholder="Type your message..."
+                        placeholder="Type your message…"
                         className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         value={messageText}
                         onChange={(e) => setMessageText(e.target.value)}
