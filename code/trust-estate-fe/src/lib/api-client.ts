@@ -97,9 +97,15 @@ async function request<T>(
   if (!res.ok) {
     let apiError: ApiError;
     try {
-      apiError = await res.json();
+      const body = await res.json();
+      // Handle ASP.NET Core ValidationProblemDetails shape (has title not message)
+      apiError = {
+        message: body.message ?? body.title ?? 'An unexpected error occurred',
+        statusCode: body.statusCode ?? body.status ?? res.status,
+        errors: body.errors,
+      };
     } catch {
-      apiError = { message: 'An unexpected error occurred', statusCode: res.status };
+      apiError = { message: 'Unable to reach the server. Is the backend running?', statusCode: res.status };
     }
     throw new ApiRequestError(res.status, apiError);
   }

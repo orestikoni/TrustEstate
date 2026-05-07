@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useAuth } from '@/store/auth.context';
 import {
   Heart,
   Search,
@@ -188,10 +189,16 @@ const recentSearches: RecentSearch[] = [
 ];
 
 export default function BuyerDashboard() {
+  const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<'overview' | 'saved' | 'offers' | 'searches'>(
     'overview'
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const fullName = user ? `${user.firstName} ${user.lastName}` : 'Loading...';
+  const initials = user
+    ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
+    : '?';
 
   const formatPrice = (price: number) =>
     new Intl.NumberFormat('en-US', {
@@ -247,11 +254,11 @@ export default function BuyerDashboard() {
       <div className="p-6 border-b border-gray-500/30">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white text-lg font-bold shadow-lg">
-            JD
+            {initials}
           </div>
           <div>
-            <p className="font-bold text-white">John Doe</p>
-            <p className="text-sm text-gray-300">Buyer</p>
+            <p className="font-bold text-white">{fullName}</p>
+            <p className="text-sm text-gray-300">{user?.role ?? 'Buyer'}</p>
           </div>
         </div>
       </div>
@@ -300,7 +307,10 @@ export default function BuyerDashboard() {
           <Settings size={20} />
           Settings
         </button>
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-red-400 hover:bg-red-500/10 transition-all">
+        <button
+          onClick={() => logout()}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-red-400 hover:bg-red-500/10 transition-all"
+        >
           <LogOut size={20} />
           Sign Out
         </button>
