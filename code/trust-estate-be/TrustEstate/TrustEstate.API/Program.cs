@@ -7,6 +7,7 @@ using Microsoft.OpenApi.Models;
 using TrustEstate.API.Middleware;
 using TrustEstate.Infrastructure;
 using TrustEstate.Infrastructure.Persistence;
+using TrustEstate.Infrastructure.Services;
 using Microsoft.AspNetCore.RateLimiting;
 
 
@@ -87,6 +88,15 @@ builder.Services.AddCors(options =>
 builder.Services.AddInfrastructure();
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var seeder = new DataSeeder(
+        scope.ServiceProvider.GetRequiredService<TrustEstateDbContext>(),
+        scope.ServiceProvider.GetRequiredService<IConfiguration>()
+    );
+    await seeder.SeedAsync();
+}
 
 if (app.Environment.IsDevelopment())
 {

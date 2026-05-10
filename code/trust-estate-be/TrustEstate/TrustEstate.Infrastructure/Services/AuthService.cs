@@ -41,7 +41,10 @@ public class AuthService : IAuthService
         if (!passwordValid)
             throw new UnauthorizedAccessException("Invalid email or password.");
 
-        if (user!.AccountStatus == AccountStatus.Suspended)
+        if (user!.AccountStatus == AccountStatus.Pending)
+            throw new InvalidOperationException("Your account is pending verification. Please wait for admin approval.");
+
+        if (user.AccountStatus == AccountStatus.Suspended)
             throw new InvalidOperationException("Your account has been suspended.");
 
         if (user.AccountStatus == AccountStatus.Deactivated)
@@ -90,7 +93,9 @@ public class AuthService : IAuthService
             Email = emailLower,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
             Role = role,
-            AccountStatus = role == UserRole.Admin ? AccountStatus.Pending : AccountStatus.Active,
+            AccountStatus = role is UserRole.Buyer or UserRole.PropertyOwner
+                ? AccountStatus.Active
+                : AccountStatus.Pending,
             PhoneNumber = string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : request.PhoneNumber,
             AgencyType = request.AgencyType,
             AgencyName = request.AgencyName,
