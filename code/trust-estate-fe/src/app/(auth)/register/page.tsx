@@ -11,13 +11,15 @@ import { AuthLayout } from '@/components/auth/AuthLayout';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { RoleSelector } from '@/components/auth/RoleSelector';
-import { authService } from '@/services/auth.service'; 
+import { authService } from '@/services/auth.service';
 import { registerSchema, type RegisterFormData } from '@/lib/validations/auth';
 import { ApiRequestError } from '@/lib/api-client';
+import { useAuth, ROLE_DASHBOARD } from '@/store/auth.context';
 import { cn } from '@/utils/cn';
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -52,7 +54,16 @@ export default function RegisterPage() {
       const { acceptTerms, confirmPassword, ...payload } = data;
       await authService.register(payload);
       const isPending = data.role === 'Agent' || data.role === 'PropertyInspector';
-      router.replace(isPending ? '/login?pending=1' : '/login?registered=1');
+      if (isPending) {
+        router.replace('/login?pending=1');
+      } else {
+        const { user, tokens } = await authService.login({
+          email: data.email,
+          password: data.password,
+        });
+        login(user, tokens);
+        router.replace(ROLE_DASHBOARD[user.role]);
+      }
     } catch (err) {
       if (err instanceof ApiRequestError) {
         setServerError(err.apiError.message);
