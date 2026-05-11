@@ -20,7 +20,29 @@ public class TrustEstateDbContext : DbContext
     public DbSet<ListingPhoto> ListingPhotos => Set<ListingPhoto>();
     public DbSet<ListingAssignment> ListingAssignments => Set<ListingAssignment>();
 
-    // Adding future DbSets here (Offers, Inspections, etc.)
+    // Offer tables
+    public DbSet<Offer> Offers => Set<Offer>();
+    public DbSet<Negotiation> Negotiations => Set<Negotiation>();
+    public DbSet<PostInspectionWindow> PostInspectionWindows => Set<PostInspectionWindow>();
+
+    // Inspection tables
+    public DbSet<Inspection> Inspections => Set<Inspection>();
+    public DbSet<InspectionReport> InspectionReports => Set<InspectionReport>();
+    public DbSet<InspectionCategory> InspectionCategories => Set<InspectionCategory>();
+    public DbSet<InspectionPhoto> InspectionPhotos => Set<InspectionPhoto>();
+
+    // Transaction & dispute tables
+    public DbSet<Transaction> Transactions => Set<Transaction>();
+    public DbSet<Dispute> Disputes => Set<Dispute>();
+
+    // Communication tables
+    public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<MessageThread> MessageThreads => Set<MessageThread>();
+    public DbSet<Message> Messages => Set<Message>();
+
+    // Misc tables
+    public DbSet<FavoriteListing> FavoriteListings => Set<FavoriteListing>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

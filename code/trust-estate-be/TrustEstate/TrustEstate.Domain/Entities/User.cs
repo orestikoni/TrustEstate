@@ -24,4 +24,10 @@ public class User
     public InspectorProfile? InspectorProfile { get; set; }
     public ICollection<LoginAttempt> LoginAttempts { get; set; } = new List<LoginAttempt>();
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+    public ICollection<Offer> OffersAsBuyer { get; set; } = new List<Offer>();
+    public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
+    public ICollection<Message> SentMessages { get; set; } = new List<Message>();
+    public ICollection<Message> ReceivedMessages { get; set; } = new List<Message>();
+    public ICollection<FavoriteListing> FavoriteListings { get; set; } = new List<FavoriteListing>();
+    public ICollection<Dispute> SubmittedDisputes { get; set; } = new List<Dispute>();
 }

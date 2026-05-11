@@ -12,8 +12,7 @@ namespace TrustEstate.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "PasswordResetTokens");
+            migrationBuilder.Sql("DROP TABLE IF EXISTS \"PasswordResetTokens\";");
 
             migrationBuilder.RenameColumn(
                 name: "Id",
