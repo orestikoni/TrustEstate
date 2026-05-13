@@ -56,6 +56,260 @@ namespace TrustEstate.Infrastructure.Migrations
                     b.ToTable("AgentProfile");
                 });
 
+            modelBuilder.Entity("TrustEstate.Domain.Entities.AuditLog", b =>
+                {
+                    b.Property<int>("LogId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("LogId"));
+
+                    b.Property<string>("ActionType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("EntityId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EntityType")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)");
+
+                    b.Property<DateTime>("PerformedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("LogId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("AuditLogs", (string)null);
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.Dispute", b =>
+                {
+                    b.Property<int>("DisputeId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("DisputeId"));
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ResolutionOutcome")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("SubmittedById")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TransactionId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("DisputeId");
+
+                    b.HasIndex("SubmittedById");
+
+                    b.HasIndex("TransactionId");
+
+                    b.ToTable("Disputes", (string)null);
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.FavoriteListing", b =>
+                {
+                    b.Property<int>("FavoriteId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("FavoriteId"));
+
+                    b.Property<int>("ListingId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("SavedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("FavoriteId");
+
+                    b.HasIndex("ListingId");
+
+                    b.HasIndex("UserId", "ListingId")
+                        .IsUnique();
+
+                    b.ToTable("FavoriteListings", (string)null);
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.Inspection", b =>
+                {
+                    b.Property<int>("InspectionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("InspectionId"));
+
+                    b.Property<int>("AgentId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("AssignedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("InspectorId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ListingId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("OfferId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("ScheduledDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("InspectionId");
+
+                    b.HasIndex("AgentId");
+
+                    b.HasIndex("InspectorId");
+
+                    b.HasIndex("ListingId");
+
+                    b.HasIndex("OfferId")
+                        .IsUnique();
+
+                    b.ToTable("Inspections", (string)null);
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.InspectionCategory", b =>
+                {
+                    b.Property<int>("CategoryId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("CategoryId"));
+
+                    b.Property<string>("CategoryName")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Findings")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("PassFail")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<int>("ReportId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.HasKey("CategoryId");
+
+                    b.HasIndex("ReportId");
+
+                    b.ToTable("InspectionCategories", (string)null);
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.InspectionPhoto", b =>
+                {
+                    b.Property<int>("InspectionPhotoId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("InspectionPhotoId"));
+
+                    b.Property<int>("CategoryId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PhotoUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("InspectionPhotoId");
+
+                    b.HasIndex("CategoryId");
+
+                    b.ToTable("InspectionPhotos", (string)null);
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.InspectionReport", b =>
+                {
+                    b.Property<int>("ReportId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("ReportId"));
+
+                    b.Property<string>("FinalVerdict")
+                        .HasMaxLength(25)
+                        .HasColumnType("character varying(25)");
+
+                    b.Property<int>("InspectionId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("VerdictSubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ReportId");
+
+                    b.HasIndex("InspectionId")
+                        .IsUnique();
+
+                    b.ToTable("InspectionReports", (string)null);
+                });
+
             modelBuilder.Entity("TrustEstate.Domain.Entities.InspectorProfile", b =>
                 {
                     b.Property<int>("InspectorProfileId")
@@ -268,6 +522,253 @@ namespace TrustEstate.Infrastructure.Migrations
                     b.ToTable("LoginAttempts");
                 });
 
+            modelBuilder.Entity("TrustEstate.Domain.Entities.Message", b =>
+                {
+                    b.Property<int>("MessageId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("MessageId"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("ReceiverId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SenderId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ThreadId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("MessageId");
+
+                    b.HasIndex("ReceiverId");
+
+                    b.HasIndex("SenderId");
+
+                    b.HasIndex("ThreadId");
+
+                    b.ToTable("Messages", (string)null);
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.MessageThread", b =>
+                {
+                    b.Property<int>("ThreadId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("ThreadId"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ListingId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ParticipantOneId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ParticipantTwoId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ThreadId");
+
+                    b.HasIndex("ListingId");
+
+                    b.HasIndex("ParticipantOneId");
+
+                    b.HasIndex("ParticipantTwoId");
+
+                    b.ToTable("MessageThreads", (string)null);
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.Negotiation", b =>
+                {
+                    b.Property<int>("NegotiationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("NegotiationId"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(15)
+                        .HasColumnType("character varying(15)");
+
+                    b.Property<string>("ActorRole")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("OfferId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("ProposedPrice")
+                        .HasColumnType("numeric(15,2)");
+
+                    b.Property<DateTime?>("ResponseDeadline")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("RoundNumber")
+                        .HasColumnType("integer");
+
+                    b.HasKey("NegotiationId");
+
+                    b.HasIndex("OfferId");
+
+                    b.ToTable("Negotiations", (string)null);
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.Notification", b =>
+                {
+                    b.Property<int>("NotificationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("NotificationId"));
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("RelatedEntityId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RelatedEntityType")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("NotificationId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Notifications", (string)null);
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.Offer", b =>
+                {
+                    b.Property<int>("OfferId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("OfferId"));
+
+                    b.Property<int>("BuyerId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ListingId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("NegotiationRound")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("ProposedPrice")
+                        .HasColumnType("numeric(15,2)");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ResponseDeadline")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("OfferId");
+
+                    b.HasIndex("BuyerId");
+
+                    b.HasIndex("ListingId");
+
+                    b.ToTable("Offers", (string)null);
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.PostInspectionWindow", b =>
+                {
+                    b.Property<int>("WindowId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("WindowId"));
+
+                    b.Property<string>("ActionTaken")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("ActionTakenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("InspectionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("OfferId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("VerdictNotifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("WindowExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("WindowId");
+
+                    b.HasIndex("InspectionId")
+                        .IsUnique();
+
+                    b.HasIndex("OfferId")
+                        .IsUnique();
+
+                    b.ToTable("PostInspectionWindows", (string)null);
+                });
+
             modelBuilder.Entity("TrustEstate.Domain.Entities.RefreshToken", b =>
                 {
                     b.Property<int>("Id")
@@ -301,6 +802,57 @@ namespace TrustEstate.Infrastructure.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("RefreshTokens");
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.Transaction", b =>
+                {
+                    b.Property<int>("TransactionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("TransactionId"));
+
+                    b.Property<int>("AgentId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BuyerId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ListingId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("OfferId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("OwnerId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("TransactionId");
+
+                    b.HasIndex("AgentId");
+
+                    b.HasIndex("BuyerId");
+
+                    b.HasIndex("ListingId")
+                        .IsUnique();
+
+                    b.HasIndex("OfferId")
+                        .IsUnique();
+
+                    b.HasIndex("OwnerId");
+
+                    b.ToTable("Transactions", (string)null);
                 });
 
             modelBuilder.Entity("TrustEstate.Domain.Entities.User", b =>
@@ -382,6 +934,122 @@ namespace TrustEstate.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("TrustEstate.Domain.Entities.AuditLog", b =>
+                {
+                    b.HasOne("TrustEstate.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.Dispute", b =>
+                {
+                    b.HasOne("TrustEstate.Domain.Entities.User", "SubmittedBy")
+                        .WithMany("SubmittedDisputes")
+                        .HasForeignKey("SubmittedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TrustEstate.Domain.Entities.Transaction", "Transaction")
+                        .WithMany("Disputes")
+                        .HasForeignKey("TransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("SubmittedBy");
+
+                    b.Navigation("Transaction");
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.FavoriteListing", b =>
+                {
+                    b.HasOne("TrustEstate.Domain.Entities.Listing", "Listing")
+                        .WithMany("FavoritedBy")
+                        .HasForeignKey("ListingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TrustEstate.Domain.Entities.User", "User")
+                        .WithMany("FavoriteListings")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Listing");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.Inspection", b =>
+                {
+                    b.HasOne("TrustEstate.Domain.Entities.User", "Agent")
+                        .WithMany()
+                        .HasForeignKey("AgentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TrustEstate.Domain.Entities.User", "Inspector")
+                        .WithMany()
+                        .HasForeignKey("InspectorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TrustEstate.Domain.Entities.Listing", "Listing")
+                        .WithMany("Inspections")
+                        .HasForeignKey("ListingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TrustEstate.Domain.Entities.Offer", "Offer")
+                        .WithOne("Inspection")
+                        .HasForeignKey("TrustEstate.Domain.Entities.Inspection", "OfferId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Agent");
+
+                    b.Navigation("Inspector");
+
+                    b.Navigation("Listing");
+
+                    b.Navigation("Offer");
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.InspectionCategory", b =>
+                {
+                    b.HasOne("TrustEstate.Domain.Entities.InspectionReport", "Report")
+                        .WithMany("Categories")
+                        .HasForeignKey("ReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Report");
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.InspectionPhoto", b =>
+                {
+                    b.HasOne("TrustEstate.Domain.Entities.InspectionCategory", "Category")
+                        .WithMany("Photos")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Category");
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.InspectionReport", b =>
+                {
+                    b.HasOne("TrustEstate.Domain.Entities.Inspection", "Inspection")
+                        .WithOne("Report")
+                        .HasForeignKey("TrustEstate.Domain.Entities.InspectionReport", "InspectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Inspection");
+                });
+
             modelBuilder.Entity("TrustEstate.Domain.Entities.InspectorProfile", b =>
                 {
                     b.HasOne("TrustEstate.Domain.Entities.User", "User")
@@ -450,6 +1118,120 @@ namespace TrustEstate.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("TrustEstate.Domain.Entities.Message", b =>
+                {
+                    b.HasOne("TrustEstate.Domain.Entities.User", "Receiver")
+                        .WithMany("ReceivedMessages")
+                        .HasForeignKey("ReceiverId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TrustEstate.Domain.Entities.User", "Sender")
+                        .WithMany("SentMessages")
+                        .HasForeignKey("SenderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TrustEstate.Domain.Entities.MessageThread", "Thread")
+                        .WithMany("Messages")
+                        .HasForeignKey("ThreadId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Receiver");
+
+                    b.Navigation("Sender");
+
+                    b.Navigation("Thread");
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.MessageThread", b =>
+                {
+                    b.HasOne("TrustEstate.Domain.Entities.Listing", "Listing")
+                        .WithMany("MessageThreads")
+                        .HasForeignKey("ListingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TrustEstate.Domain.Entities.User", "ParticipantOne")
+                        .WithMany()
+                        .HasForeignKey("ParticipantOneId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TrustEstate.Domain.Entities.User", "ParticipantTwo")
+                        .WithMany()
+                        .HasForeignKey("ParticipantTwoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Listing");
+
+                    b.Navigation("ParticipantOne");
+
+                    b.Navigation("ParticipantTwo");
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.Negotiation", b =>
+                {
+                    b.HasOne("TrustEstate.Domain.Entities.Offer", "Offer")
+                        .WithMany("Negotiations")
+                        .HasForeignKey("OfferId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Offer");
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.Notification", b =>
+                {
+                    b.HasOne("TrustEstate.Domain.Entities.User", "User")
+                        .WithMany("Notifications")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.Offer", b =>
+                {
+                    b.HasOne("TrustEstate.Domain.Entities.User", "Buyer")
+                        .WithMany("OffersAsBuyer")
+                        .HasForeignKey("BuyerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TrustEstate.Domain.Entities.Listing", "Listing")
+                        .WithMany("Offers")
+                        .HasForeignKey("ListingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Buyer");
+
+                    b.Navigation("Listing");
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.PostInspectionWindow", b =>
+                {
+                    b.HasOne("TrustEstate.Domain.Entities.Inspection", "Inspection")
+                        .WithOne("PostInspectionWindow")
+                        .HasForeignKey("TrustEstate.Domain.Entities.PostInspectionWindow", "InspectionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TrustEstate.Domain.Entities.Offer", "Offer")
+                        .WithOne("PostInspectionWindow")
+                        .HasForeignKey("TrustEstate.Domain.Entities.PostInspectionWindow", "OfferId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Inspection");
+
+                    b.Navigation("Offer");
+                });
+
             modelBuilder.Entity("TrustEstate.Domain.Entities.RefreshToken", b =>
                 {
                     b.HasOne("TrustEstate.Domain.Entities.User", "User")
@@ -461,22 +1243,125 @@ namespace TrustEstate.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("TrustEstate.Domain.Entities.Transaction", b =>
+                {
+                    b.HasOne("TrustEstate.Domain.Entities.User", "Agent")
+                        .WithMany()
+                        .HasForeignKey("AgentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TrustEstate.Domain.Entities.User", "Buyer")
+                        .WithMany()
+                        .HasForeignKey("BuyerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TrustEstate.Domain.Entities.Listing", "Listing")
+                        .WithOne("Transaction")
+                        .HasForeignKey("TrustEstate.Domain.Entities.Transaction", "ListingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TrustEstate.Domain.Entities.Offer", "Offer")
+                        .WithOne("Transaction")
+                        .HasForeignKey("TrustEstate.Domain.Entities.Transaction", "OfferId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TrustEstate.Domain.Entities.User", "Owner")
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Agent");
+
+                    b.Navigation("Buyer");
+
+                    b.Navigation("Listing");
+
+                    b.Navigation("Offer");
+
+                    b.Navigation("Owner");
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.Inspection", b =>
+                {
+                    b.Navigation("PostInspectionWindow");
+
+                    b.Navigation("Report");
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.InspectionCategory", b =>
+                {
+                    b.Navigation("Photos");
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.InspectionReport", b =>
+                {
+                    b.Navigation("Categories");
+                });
+
             modelBuilder.Entity("TrustEstate.Domain.Entities.Listing", b =>
                 {
                     b.Navigation("Assignments");
 
+                    b.Navigation("FavoritedBy");
+
+                    b.Navigation("Inspections");
+
+                    b.Navigation("MessageThreads");
+
+                    b.Navigation("Offers");
+
                     b.Navigation("Photos");
+
+                    b.Navigation("Transaction");
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.MessageThread", b =>
+                {
+                    b.Navigation("Messages");
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.Offer", b =>
+                {
+                    b.Navigation("Inspection");
+
+                    b.Navigation("Negotiations");
+
+                    b.Navigation("PostInspectionWindow");
+
+                    b.Navigation("Transaction");
+                });
+
+            modelBuilder.Entity("TrustEstate.Domain.Entities.Transaction", b =>
+                {
+                    b.Navigation("Disputes");
                 });
 
             modelBuilder.Entity("TrustEstate.Domain.Entities.User", b =>
                 {
                     b.Navigation("AgentProfile");
 
+                    b.Navigation("FavoriteListings");
+
                     b.Navigation("InspectorProfile");
 
                     b.Navigation("LoginAttempts");
 
+                    b.Navigation("Notifications");
+
+                    b.Navigation("OffersAsBuyer");
+
+                    b.Navigation("ReceivedMessages");
+
                     b.Navigation("RefreshTokens");
+
+                    b.Navigation("SentMessages");
+
+                    b.Navigation("SubmittedDisputes");
                 });
 #pragma warning restore 612, 618
         }

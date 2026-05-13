@@ -33,4 +33,9 @@ public class Listing
     public User? Agent { get; set; }
     public ICollection<ListingPhoto> Photos { get; set; } = new List<ListingPhoto>();
     public ICollection<ListingAssignment> Assignments { get; set; } = new List<ListingAssignment>();
+    public ICollection<Offer> Offers { get; set; } = new List<Offer>();
+    public ICollection<FavoriteListing> FavoritedBy { get; set; } = new List<FavoriteListing>();
+    public ICollection<MessageThread> MessageThreads { get; set; } = new List<MessageThread>();
+    public Transaction? Transaction { get; set; }
+    public ICollection<Inspection> Inspections { get; set; } = new List<Inspection>();
 }

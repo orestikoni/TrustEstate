@@ -13,8 +13,13 @@ namespace TrustEstate.API.Controllers;
 public sealed class ListingController : ControllerBase
 {
     private readonly IListingService _listings;
+    private readonly IFavoriteListingService _favorites;
 
-    public ListingController(IListingService listings) => _listings = listings;
+    public ListingController(IListingService listings, IFavoriteListingService favorites)
+    {
+        _listings = listings;
+        _favorites = favorites;
+    }
 
     // ── Public ────────────────────────────────────────────────────────────────
 
@@ -169,6 +174,41 @@ public sealed class ListingController : ControllerBase
         var agentId = GetCurrentUserId();
         var listing = await _listings.AgentUpdateListingAsync(agentId, id, request, ct);
         return Ok(listing);
+    }
+
+    // ── Buyer: Favorites ─────────────────────────────────────────────────────
+
+    [HttpGet("favorites")]
+    [Authorize(Roles = "Buyer")]
+    [ProducesResponseType(typeof(IEnumerable<ListingDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetFavorites(CancellationToken ct)
+    {
+        var userId = GetCurrentUserId();
+        var listings = await _favorites.GetFavoritesAsync(userId, ct);
+        return Ok(listings);
+    }
+
+    [HttpPost("{id:int}/favorites")]
+    [Authorize(Roles = "Buyer")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> SaveListing(int id, CancellationToken ct)
+    {
+        var userId = GetCurrentUserId();
+        await _favorites.SaveListingAsync(userId, id, ct);
+        return NoContent();
+    }
+
+    [HttpDelete("{id:int}/favorites")]
+    [Authorize(Roles = "Buyer")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UnsaveListing(int id, CancellationToken ct)
+    {
+        var userId = GetCurrentUserId();
+        await _favorites.UnsaveListingAsync(userId, id, ct);
+        return NoContent();
     }
 
     // ── Helper ────────────────────────────────────────────────────────────────
