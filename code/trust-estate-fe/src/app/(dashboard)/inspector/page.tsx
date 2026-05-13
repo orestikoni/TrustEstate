@@ -21,16 +21,17 @@ import {
   Clock,
   ChevronRight,
   Award,
-  Upload,
   Send,
   Eye,
   FileText,
   User,
   Phone,
   Mail,
-  Camera,
   AlertTriangle,
 } from 'lucide-react';
+import { InspectionCard } from '@/components/inspector/InspectionCard';
+import { InspectionReportForm } from '@/components/inspector/InspectionReportForm';
+import { FinalVerdictForm } from '@/components/inspector/FinalVerdictForm';
 
 type InspectionStatus = 'scheduled' | 'in_progress' | 'completed' | 'report_submitted';
 type Severity = 'minor' | 'moderate' | 'critical';
@@ -140,12 +141,14 @@ const mockInspections: AssignedInspection[] = [
 ];
 
 const mockNotifications: Notification[] = [
-  { id: 1, type: 'assignment',    title: 'New Inspection Assigned',     message: 'You have been assigned to inspect Modern Luxury Villa on March 18, 2024', timestamp: '2 hours ago', read: false, inspectionId: 1 },
-  { id: 2, type: 'status_update', title: 'Inspection Completed',        message: 'Beachfront Paradise inspection marked as completed. Please submit report.', timestamp: '1 day ago',   read: false, inspectionId: 3 },
-  { id: 3, type: 'report_due',    title: 'Report Submission Reminder',  message: 'Report for Downtown Penthouse is due in 2 days',                           timestamp: '2 days ago',  read: true,  inspectionId: 2 },
+  { id: 1, type: 'assignment',    title: 'New Inspection Assigned',    message: 'You have been assigned to inspect Modern Luxury Villa on March 18, 2024', timestamp: '2 hours ago', read: false, inspectionId: 1 },
+  { id: 2, type: 'status_update', title: 'Inspection Completed',       message: 'Beachfront Paradise inspection marked as completed. Please submit report.', timestamp: '1 day ago',   read: false, inspectionId: 3 },
+  { id: 3, type: 'report_due',    title: 'Report Submission Reminder', message: 'Report for Downtown Penthouse is due in 2 days',                           timestamp: '2 days ago',  read: true,  inspectionId: 2 },
 ];
 
 const emptyCategory: CategoryFindings = { findings: '', rating: '', severity: '', photos: [] };
+
+type ReportCategory = keyof Omit<InspectionReport, 'inspectionId' | 'finalVerdict' | 'submittedDate' | 'locked'>;
 
 export default function InspectorDashboardPage() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'inspections' | 'history' | 'notifications'>('dashboard');
@@ -165,22 +168,20 @@ export default function InspectorDashboardPage() {
 
   const getStatusConfig = (status: InspectionStatus) => {
     switch (status) {
-      case 'scheduled':        return { label: 'Scheduled',         color: 'bg-blue-100 text-blue-700 border-blue-300',     icon: Calendar };
-      case 'in_progress':      return { label: 'In Progress',       color: 'bg-purple-100 text-purple-700 border-purple-300', icon: Clock };
-      case 'completed':        return { label: 'Completed',         color: 'bg-orange-100 text-orange-700 border-orange-300', icon: CheckCircle };
-      case 'report_submitted': return { label: 'Report Submitted',  color: 'bg-green-100 text-green-700 border-green-300',   icon: FileText };
+      case 'scheduled':        return { label: 'Scheduled',        color: 'bg-blue-100 text-blue-700 border-blue-300',     icon: Calendar };
+      case 'in_progress':      return { label: 'In Progress',      color: 'bg-purple-100 text-purple-700 border-purple-300', icon: Clock };
+      case 'completed':        return { label: 'Completed',        color: 'bg-orange-100 text-orange-700 border-orange-300', icon: CheckCircle };
+      case 'report_submitted': return { label: 'Report Submitted', color: 'bg-green-100 text-green-700 border-green-300',   icon: FileText };
     }
   };
 
   const getVerdictConfig = (verdict: FinalVerdict) => {
     switch (verdict) {
-      case 'passed':                  return { label: 'PASSED',                  color: 'bg-green-100 text-green-700 border-green-300',   icon: CheckCircle };
-      case 'passed_with_conditions':  return { label: 'PASSED WITH CONDITIONS',  color: 'bg-yellow-100 text-yellow-700 border-yellow-300', icon: AlertCircle };
-      case 'failed':                  return { label: 'FAILED',                  color: 'bg-red-100 text-red-700 border-red-300',          icon: XCircle };
+      case 'passed':                 return { label: 'PASSED',                 color: 'bg-green-100 text-green-700 border-green-300',   icon: CheckCircle };
+      case 'passed_with_conditions': return { label: 'PASSED WITH CONDITIONS', color: 'bg-yellow-100 text-yellow-700 border-yellow-300', icon: AlertCircle };
+      case 'failed':                 return { label: 'FAILED',                 color: 'bg-red-100 text-red-700 border-red-300',          icon: XCircle };
     }
   };
-
-  type ReportCategory = keyof Omit<InspectionReport, 'inspectionId' | 'finalVerdict' | 'submittedDate' | 'locked'>;
 
   const handleUpdateStatus = (inspection: AssignedInspection, newStatus: InspectionStatus) =>
     console.log('Updating status:', { inspectionId: inspection.id, newStatus });
@@ -205,15 +206,13 @@ export default function InspectorDashboardPage() {
         return;
       }
     }
-    console.log('Submitting report:', report);
     setReport((prev) => ({ ...prev, locked: true, submittedDate: new Date().toISOString() }));
     setShowReportForm(false);
     setShowVerdictForm(true);
   };
 
   const handleSubmitVerdict = (verdict: FinalVerdict) => {
-    if (window.confirm(`Are you sure you want to submit the final verdict as "${verdict.toUpperCase().replace('_', ' ')}"? This action cannot be undone.`)) {
-      console.log('Submitting verdict:', { inspectionId: selectedInspection?.id, verdict });
+    if (window.confirm(`Are you sure you want to submit the final verdict as "${verdict.toUpperCase().replace(/_/g, ' ')}"? This action cannot be undone.`)) {
       setReport((prev) => ({ ...prev, finalVerdict: verdict }));
       setShowVerdictForm(false);
       setSelectedInspection(null);
@@ -255,16 +254,16 @@ export default function InspectorDashboardPage() {
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-2">
         {[
-          { tab: 'dashboard',    icon: <Home size={20} />,          label: 'Dashboard' },
-          { tab: 'inspections',  icon: <ClipboardCheck size={20} />,label: 'Assigned Inspections',
+          { tab: 'dashboard',     icon: <Home          size={20} />, label: 'Dashboard' },
+          { tab: 'inspections',   icon: <ClipboardCheck size={20} />, label: 'Assigned Inspections',
             count: mockInspections.filter(i => i.status !== 'report_submitted').length },
-          { tab: 'history',      icon: <FileText size={20} />,      label: 'Inspection History' },
-          { tab: 'notifications',icon: <Bell size={20} />,          label: 'Notifications',
+          { tab: 'history',       icon: <FileText      size={20} />, label: 'Inspection History' },
+          { tab: 'notifications', icon: <Bell          size={20} />, label: 'Notifications',
             count: mockNotifications.filter(n => !n.read).length, countColor: 'bg-red-500' },
         ].map(({ tab, icon, label, count, countColor }) => (
           <button
             key={tab}
-            onClick={() => { setActiveTab(tab as typeof activeTab); setSelectedInspection(null); }}
+            onClick={() => { setActiveTab(tab as typeof activeTab); setSelectedInspection(null); setShowReportForm(false); setShowVerdictForm(false); }}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
               activeTab === tab ? 'bg-white text-blue-600 shadow-lg' : 'text-white hover:bg-blue-500/30'
             }`}
@@ -347,10 +346,10 @@ export default function InspectorDashboardPage() {
               {/* Stats */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
-                  { label: 'Scheduled',      value: mockInspections.filter(i => i.status === 'scheduled').length,        sub: 'Upcoming inspections', icon: <Calendar      className="text-blue-500"   size={24} /> },
-                  { label: 'In Progress',    value: mockInspections.filter(i => i.status === 'in_progress').length,      sub: 'Currently ongoing',    icon: <Clock         className="text-purple-500" size={24} /> },
-                  { label: 'Pending Reports',value: mockInspections.filter(i => i.status === 'completed').length,        sub: 'Need submission',      icon: <AlertCircle   className="text-orange-500" size={24} /> },
-                  { label: 'Completed',      value: mockInspections.filter(i => i.status === 'report_submitted').length, sub: 'This month',           icon: <CheckCircle   className="text-green-500"  size={24} /> },
+                  { label: 'Scheduled',       value: mockInspections.filter(i => i.status === 'scheduled').length,        sub: 'Upcoming inspections', icon: <Calendar    className="text-blue-500"   size={24} /> },
+                  { label: 'In Progress',     value: mockInspections.filter(i => i.status === 'in_progress').length,      sub: 'Currently ongoing',    icon: <Clock       className="text-purple-500" size={24} /> },
+                  { label: 'Pending Reports', value: mockInspections.filter(i => i.status === 'completed').length,        sub: 'Need submission',      icon: <AlertCircle className="text-orange-500" size={24} /> },
+                  { label: 'Completed',       value: mockInspections.filter(i => i.status === 'report_submitted').length, sub: 'This month',           icon: <CheckCircle className="text-green-500"  size={24} /> },
                 ].map((stat) => (
                   <div key={stat.label} className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all">
                     <div className="flex items-center justify-between mb-2">
@@ -444,39 +443,23 @@ export default function InspectorDashboardPage() {
                 You have {mockInspections.filter(i => i.status !== 'report_submitted').length} active inspections
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {mockInspections.filter(i => i.status !== 'report_submitted').map((inspection) => {
-                  const sc = getStatusConfig(inspection.status);
-                  const Icon = sc.icon;
-                  return (
-                    <div key={inspection.id} className="bg-gray-50 rounded-2xl overflow-hidden border border-gray-200 hover:shadow-xl transition-all">
-                      <div className="relative h-48 overflow-hidden">
-                        <img src={inspection.propertyImage} alt={inspection.propertyTitle} className="w-full h-full object-cover"
-                          onError={(e) => ((e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg')} />
-                        <div className="absolute top-3 right-3">
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border backdrop-blur-sm ${sc.color}`}>
-                            <Icon size={14} />{sc.label}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="p-5">
-                        <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-1">{inspection.propertyTitle}</h3>
-                        <div className="flex items-center gap-2 text-gray-600 mb-4"><MapPin size={16} /><span className="text-sm line-clamp-1">{inspection.propertyAddress}</span></div>
-                        <div className="flex items-center justify-between py-3 border-t border-b border-gray-200 mb-4">
-                          <div className="flex items-center gap-1.5 text-gray-700"><Bed    size={18} className="text-blue-600" /><span className="text-sm font-semibold">{inspection.bedrooms}</span></div>
-                          <div className="flex items-center gap-1.5 text-gray-700"><Bath   size={18} className="text-blue-600" /><span className="text-sm font-semibold">{inspection.bathrooms}</span></div>
-                          <div className="flex items-center gap-1.5 text-gray-700"><Square size={18} className="text-blue-600" /><span className="text-sm font-semibold">{inspection.area}</span></div>
-                        </div>
-                        <div className="space-y-2 mb-4">
-                          <div className="flex items-center gap-2 text-sm text-gray-600"><Calendar size={14} /><span>{inspection.scheduledDate} at {inspection.scheduledTime}</span></div>
-                          <div className="flex items-center gap-2 text-sm text-gray-600"><User size={14} /><span>Agent: {inspection.agentName}</span></div>
-                        </div>
-                        <button onClick={() => setSelectedInspection(inspection)} className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
-                          <Eye size={18} /> View Details
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                {mockInspections.filter(i => i.status !== 'report_submitted').map((inspection) => (
+                  <InspectionCard
+                    key={inspection.id}
+                    id={inspection.id}
+                    propertyTitle={inspection.propertyTitle}
+                    propertyAddress={inspection.propertyAddress}
+                    propertyImage={inspection.propertyImage}
+                    bedrooms={inspection.bedrooms}
+                    bathrooms={inspection.bathrooms}
+                    area={inspection.area}
+                    scheduledDate={inspection.scheduledDate}
+                    scheduledTime={inspection.scheduledTime}
+                    status={inspection.status}
+                    agentName={inspection.agentName}
+                    onClick={() => setSelectedInspection(inspection)}
+                  />
+                ))}
               </div>
             </div>
           )}
@@ -523,163 +506,139 @@ export default function InspectorDashboardPage() {
                   </div>
                 </div>
 
+                {/* Workflow Guide */}
+                <div className="mb-6 p-6 bg-gray-50 border border-gray-200 rounded-xl">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">Inspection Workflow</h3>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {[
+                      { s: 'scheduled',        label: 'Scheduled',        icon: Calendar,    active: 'bg-blue-600',   done: 'bg-blue-100 text-blue-700' },
+                      { s: 'in_progress',      label: 'In Progress',      icon: Clock,       active: 'bg-purple-600', done: 'bg-purple-100 text-purple-700' },
+                      { s: 'completed',        label: 'Completed',        icon: CheckCircle, active: 'bg-orange-600', done: 'bg-orange-100 text-orange-700' },
+                      { s: 'report_submitted', label: 'Report Submitted', icon: FileText,    active: 'bg-green-600',  done: 'bg-green-100 text-green-700' },
+                    ].map((step, idx, arr) => {
+                      const statuses: InspectionStatus[] = ['scheduled', 'in_progress', 'completed', 'report_submitted'];
+                      const currentIdx = statuses.indexOf(selectedInspection.status);
+                      const stepIdx = statuses.indexOf(step.s as InspectionStatus);
+                      const isCurrent = step.s === selectedInspection.status;
+                      const isDone = stepIdx < currentIdx;
+                      const Icon = step.icon;
+                      return (
+                        <React.Fragment key={step.s}>
+                          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold ${
+                            isCurrent ? `${step.active} text-white` :
+                            isDone ? step.done :
+                            'bg-gray-200 text-gray-500'
+                          }`}>
+                            <Icon size={16} />{step.label}
+                          </div>
+                          {idx < arr.length - 1 && <ChevronRight size={20} className="text-gray-400" />}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Report Section */}
+                <div className="mb-6">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">Inspection Report</h3>
+                  {selectedInspection.status === 'report_submitted' ? (
+                    <div className="p-6 bg-green-50 border-2 border-green-200 rounded-xl">
+                      <div className="flex items-center gap-3 mb-3">
+                        <CheckCircle className="text-green-600" size={24} />
+                        <p className="text-lg font-bold text-green-900">Report Submitted Successfully</p>
+                      </div>
+                      <p className="text-sm text-green-800 mb-4">Your inspection report and final verdict have been submitted and locked.</p>
+                      <button className="px-6 py-3 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-700 transition-colors flex items-center gap-2">
+                        <Eye size={18} /> View Submitted Report
+                      </button>
+                    </div>
+                  ) : report.locked ? (
+                    <div className="p-6 bg-yellow-50 border-2 border-yellow-200 rounded-xl">
+                      <div className="flex items-center gap-3 mb-3">
+                        <AlertCircle className="text-yellow-600" size={24} />
+                        <p className="text-lg font-bold text-yellow-900">Report Pending Final Verdict</p>
+                      </div>
+                      <p className="text-sm text-yellow-800 mb-4">Your report has been submitted. Please submit the final verdict.</p>
+                      <button onClick={() => setShowVerdictForm(true)}
+                        className="px-6 py-3 bg-yellow-600 text-white font-semibold rounded-xl hover:bg-yellow-700 transition-colors flex items-center gap-2">
+                        <Send size={18} /> Submit Final Verdict
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="p-6 bg-blue-50 border-2 border-blue-200 rounded-xl">
+                      <div className="flex items-center gap-3 mb-3">
+                        <FileText className="text-blue-600" size={24} />
+                        <p className="text-lg font-bold text-blue-900">Create Inspection Report</p>
+                      </div>
+                      <p className="text-sm text-blue-800 mb-4">
+                        Complete findings for <strong>Structural Integrity</strong>, <strong>Plumbing</strong>, <strong>Electrical</strong>, and <strong>Safety</strong>.
+                      </p>
+                      <button
+                        onClick={() => { setReport((prev) => ({ ...prev, inspectionId: selectedInspection.id })); setShowReportForm(true); }}
+                        className="w-full py-4 bg-blue-600 text-white font-bold text-lg rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 shadow-lg"
+                      >
+                        <FileText size={22} /> Create Inspection Report
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 {/* Status Actions */}
                 <div className="space-y-4">
                   <h3 className="text-lg font-bold text-gray-900">Update Inspection Status</h3>
                   {selectedInspection.status === 'scheduled' && (
-                    <button onClick={() => handleUpdateStatus(selectedInspection, 'in_progress')} className="w-full py-4 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2">
-                      <Clock size={20} /> Mark as In Progress
-                    </button>
+                    <>
+                      <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl">
+                        <p className="text-sm text-purple-800">Click below to mark as <strong>In Progress</strong> when you arrive at the property.</p>
+                      </div>
+                      <button onClick={() => handleUpdateStatus(selectedInspection, 'in_progress')} className="w-full py-4 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2">
+                        <Clock size={20} /> Mark as In Progress
+                      </button>
+                    </>
                   )}
                   {selectedInspection.status === 'in_progress' && (
-                    <button onClick={() => handleUpdateStatus(selectedInspection, 'completed')} className="w-full py-4 bg-orange-600 text-white font-bold rounded-xl hover:bg-orange-700 transition-colors flex items-center justify-center gap-2">
-                      <CheckCircle size={20} /> Mark as Completed
-                    </button>
+                    <>
+                      <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
+                        <p className="text-sm text-orange-800">Mark as <strong>Completed</strong> once you finish the on-site inspection.</p>
+                      </div>
+                      <button onClick={() => handleUpdateStatus(selectedInspection, 'completed')} className="w-full py-4 bg-orange-600 text-white font-bold rounded-xl hover:bg-orange-700 transition-colors flex items-center justify-center gap-2">
+                        <CheckCircle size={20} /> Mark as Completed
+                      </button>
+                    </>
                   )}
                   {selectedInspection.status === 'completed' && (
-                    <button onClick={() => { setReport((prev) => ({ ...prev, inspectionId: selectedInspection.id })); setShowReportForm(true); }} className="w-full py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors flex items-center justify-center gap-2">
-                      <FileText size={20} /> Submit Inspection Report
-                    </button>
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
+                      <p className="text-sm text-green-800"><strong>Inspection completed!</strong> You can now submit the inspection report above.</p>
+                    </div>
+                  )}
+                  {selectedInspection.status === 'report_submitted' && (
+                    <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                      <p className="text-sm text-gray-700">This inspection is complete and the report has been submitted.</p>
+                    </div>
                   )}
                 </div>
               </div>
             </div>
           )}
 
-          {/* ── Report Submission Form ── */}
+          {/* ── Report Form ── */}
           {showReportForm && selectedInspection && (
-            <div className="max-w-5xl mx-auto space-y-6">
-              <button onClick={() => setShowReportForm(false)} className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold mb-4">
-                <ChevronRight size={20} className="rotate-180" /> Back to Inspection Details
-              </button>
-
-              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Inspection Report Submission</h2>
-                <p className="text-gray-600 mb-6">{selectedInspection.propertyTitle}</p>
-
-                <div className="space-y-8">
-                  {(['structuralIntegrity', 'plumbing', 'electrical', 'safety'] as const).map((category) => (
-                    <div key={category} className="p-6 bg-gray-50 rounded-xl border border-gray-200">
-                      <h3 className="text-lg font-bold text-gray-900 mb-4">
-                        {category === 'structuralIntegrity' ? 'Structural Integrity' : category.charAt(0).toUpperCase() + category.slice(1)}
-                      </h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-bold text-gray-900 mb-2">Findings *</label>
-                          <textarea rows={4} placeholder="Describe your findings in detail..."
-                            value={report[category].findings}
-                            onChange={(e) => handleCategoryChange(category, 'findings', e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none" />
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-bold text-gray-900 mb-2">Rating *</label>
-                            <select value={report[category].rating} onChange={(e) => handleCategoryChange(category, 'rating', e.target.value)}
-                              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                              <option value="">Select rating</option>
-                              <option value="pass">Pass</option>
-                              <option value="fail">Fail</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-bold text-gray-900 mb-2">Severity *</label>
-                            <select value={report[category].severity} onChange={(e) => handleCategoryChange(category, 'severity', e.target.value)}
-                              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                              <option value="">Select severity</option>
-                              <option value="minor">Minor</option>
-                              <option value="moderate">Moderate</option>
-                              <option value="critical">Critical</option>
-                            </select>
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-gray-900 mb-2">Supporting Photos (Optional)</label>
-                          <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-blue-500 transition-colors bg-white">
-                            <Camera className="mx-auto text-gray-400 mb-3" size={36} />
-                            <p className="text-gray-700 font-medium mb-2">Click to upload photos</p>
-                            <p className="text-sm text-gray-500 mb-4">PNG, JPG up to 10MB each</p>
-                            <input type="file" accept="image/*" multiple id={`photo-${category}`} className="hidden"
-                              onChange={(e) => handlePhotoUpload(category, e.target.files)} />
-                            <label htmlFor={`photo-${category}`} className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors inline-flex items-center gap-2 cursor-pointer">
-                              <Upload size={20} /> Choose Files
-                            </label>
-                          </div>
-                          {report[category].photos.length > 0 && (
-                            <p className="text-sm text-gray-600 mt-2">{report[category].photos.length} photo(s) uploaded</p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-8 pt-6 border-t border-gray-200">
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
-                    <p className="text-sm font-bold text-yellow-900 mb-2">Important:</p>
-                    <ul className="text-sm text-yellow-800 space-y-1">
-                      <li>• All fields marked with * are required</li>
-                      <li>• Once submitted, the report cannot be modified</li>
-                      <li>• You will be prompted to submit a final verdict after report submission</li>
-                    </ul>
-                  </div>
-                  <button onClick={handleSubmitReport} className="w-full py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors flex items-center justify-center gap-2">
-                    <Send size={20} /> Submit Inspection Report
-                  </button>
-                </div>
-              </div>
-            </div>
+            <InspectionReportForm
+              propertyTitle={selectedInspection.propertyTitle}
+              report={report}
+              onBack={() => setShowReportForm(false)}
+              onCategoryChange={handleCategoryChange}
+              onPhotoUpload={handlePhotoUpload}
+              onSubmit={handleSubmitReport}
+            />
           )}
 
-          {/* ── Final Verdict Form ── */}
+          {/* ── Verdict Form ── */}
           {showVerdictForm && selectedInspection && (
-            <div className="max-w-3xl mx-auto space-y-6">
-              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Submit Final Verdict</h2>
-                <p className="text-gray-600 mb-6">{selectedInspection.propertyTitle}</p>
-
-                <div className="mb-8 p-6 bg-blue-50 border border-blue-200 rounded-xl">
-                  <p className="text-sm font-bold text-blue-900 mb-2">Report Submitted Successfully</p>
-                  <p className="text-sm text-blue-800">Your inspection report has been locked and saved. Now please select the final verdict for this property.</p>
-                </div>
-
-                <div className="space-y-4 mb-8">
-                  <button onClick={() => handleSubmitVerdict('passed')} className="w-full p-6 bg-green-50 border-2 border-green-200 rounded-xl hover:bg-green-100 transition-all text-left">
-                    <div className="flex items-center gap-4">
-                      <CheckCircle className="text-green-600" size={32} />
-                      <div>
-                        <p className="text-lg font-bold text-green-900">PASSED</p>
-                        <p className="text-sm text-green-700">Property meets all inspection standards</p>
-                      </div>
-                    </div>
-                  </button>
-
-                  <button onClick={() => handleSubmitVerdict('passed_with_conditions')} className="w-full p-6 bg-yellow-50 border-2 border-yellow-200 rounded-xl hover:bg-yellow-100 transition-all text-left">
-                    <div className="flex items-center gap-4">
-                      <AlertTriangle className="text-yellow-600" size={32} />
-                      <div>
-                        <p className="text-lg font-bold text-yellow-900">PASSED WITH CONDITIONS</p>
-                        <p className="text-sm text-yellow-700">Property has minor issues that should be addressed</p>
-                      </div>
-                    </div>
-                  </button>
-
-                  <button onClick={() => handleSubmitVerdict('failed')} className="w-full p-6 bg-red-50 border-2 border-red-200 rounded-xl hover:bg-red-100 transition-all text-left">
-                    <div className="flex items-center gap-4">
-                      <XCircle className="text-red-600" size={32} />
-                      <div>
-                        <p className="text-lg font-bold text-red-900">FAILED</p>
-                        <p className="text-sm text-red-700">Property has critical issues requiring attention</p>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <p className="text-sm font-bold text-red-900 mb-1">Warning:</p>
-                  <p className="text-sm text-red-800">Once you submit the final verdict, it cannot be changed. The verdict will be sent to the Buyer, Agent, and Property Owner.</p>
-                </div>
-              </div>
-            </div>
+            <FinalVerdictForm
+              propertyTitle={selectedInspection.propertyTitle}
+              onSubmit={handleSubmitVerdict}
+            />
           )}
 
           {/* ── History Tab ── */}

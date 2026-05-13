@@ -54,6 +54,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
+import { ListingCard } from '@/components/admin/ListingCard';
 
 interface PendingVerification {
   id: number;
@@ -126,9 +127,9 @@ interface Notification {
 }
 
 const pendingVerifications: PendingVerification[] = [
-  { id: 1, userName: 'Robert Chen',  userEmail: 'robert.c@email.com', role: 'agent',     documentType: 'license',        submittedDate: '2026-05-08', expiresIn: '48h', documentUrl: '#' },
-  { id: 2, userName: 'Maria Garcia', userEmail: 'maria.g@email.com',  role: 'inspector', documentType: 'certification',  submittedDate: '2026-05-09', expiresIn: '24h', documentUrl: '#' },
-  { id: 3, userName: 'James Wilson', userEmail: 'james.w@email.com',  role: 'owner',     documentType: 'identity',       submittedDate: '2026-05-07', expiresIn: '72h', documentUrl: '#' },
+  { id: 1, userName: 'Robert Chen',  userEmail: 'robert.c@email.com', role: 'agent',     documentType: 'license',       submittedDate: '2026-05-08', expiresIn: '48h', documentUrl: '#' },
+  { id: 2, userName: 'Maria Garcia', userEmail: 'maria.g@email.com',  role: 'inspector', documentType: 'certification', submittedDate: '2026-05-09', expiresIn: '24h', documentUrl: '#' },
+  { id: 3, userName: 'James Wilson', userEmail: 'james.w@email.com',  role: 'owner',     documentType: 'identity',      submittedDate: '2026-05-07', expiresIn: '72h', documentUrl: '#' },
 ];
 
 const managedListings: ManagedListing[] = [
@@ -148,15 +149,15 @@ const platformUsers: PlatformUser[] = [
 ];
 
 const inspectionReports: InspectionReportReview[] = [
-  { id: 1, propertyTitle: 'Luxury Estate Mansion',  inspectorName: 'Mark Johnson', submittedDate: '2026-05-08', verdict: 'passed',                 flaggedBy: null,                       status: 'active' },
-  { id: 2, propertyTitle: 'Modern City Apartment',  inspectorName: 'Lisa Parker',  submittedDate: '2026-05-09', verdict: 'passed_with_conditions', flaggedBy: 'Owner: Jennifer Martinez', status: 'flagged' },
-  { id: 3, propertyTitle: 'Coastal Beach House',    inspectorName: 'Tom Richards', submittedDate: '2026-05-07', verdict: 'failed',                 flaggedBy: null,                       status: 'active' },
+  { id: 1, propertyTitle: 'Luxury Estate Mansion', inspectorName: 'Mark Johnson', submittedDate: '2026-05-08', verdict: 'passed',                 flaggedBy: null,                       status: 'active' },
+  { id: 2, propertyTitle: 'Modern City Apartment', inspectorName: 'Lisa Parker',  submittedDate: '2026-05-09', verdict: 'passed_with_conditions', flaggedBy: 'Owner: Jennifer Martinez', status: 'flagged' },
+  { id: 3, propertyTitle: 'Coastal Beach House',   inspectorName: 'Tom Richards', submittedDate: '2026-05-07', verdict: 'failed',                 flaggedBy: null,                       status: 'active' },
 ];
 
 const disputes: Dispute[] = [
-  { id: 1, disputeType: 'transaction', initiatedBy: 'John Doe (Buyer)',        respondent: 'Sarah Anderson (Agent)',    propertyTitle: 'Luxury Estate Mansion', submittedDate: '2026-05-09', status: 'open',          priority: 'high',   description: 'Buyer claims agent misrepresented property condition during showing.' },
-  { id: 2, disputeType: 'inspection',  initiatedBy: 'Michael Wilson (Owner)',  respondent: 'Mark Johnson (Inspector)', propertyTitle: 'Modern City Apartment', submittedDate: '2026-05-08', status: 'investigating', priority: 'medium', description: 'Owner disputes inspection report findings on electrical system.' },
-  { id: 3, disputeType: 'listing',     initiatedBy: 'Emily Chen (Buyer)',      respondent: 'David Thompson (Owner)',   propertyTitle: 'Coastal Beach House',   submittedDate: '2026-05-07', status: 'resolved',      priority: 'low',    description: 'Buyer reported inaccurate square footage in listing. Resolved: listing updated.' },
+  { id: 1, disputeType: 'transaction', initiatedBy: 'John Doe (Buyer)',       respondent: 'Sarah Anderson (Agent)',    propertyTitle: 'Luxury Estate Mansion', submittedDate: '2026-05-09', status: 'open',          priority: 'high',   description: 'Buyer claims agent misrepresented property condition during showing.' },
+  { id: 2, disputeType: 'inspection',  initiatedBy: 'Michael Wilson (Owner)', respondent: 'Mark Johnson (Inspector)', propertyTitle: 'Modern City Apartment', submittedDate: '2026-05-08', status: 'investigating', priority: 'medium', description: 'Owner disputes inspection report findings on electrical system.' },
+  { id: 3, disputeType: 'listing',     initiatedBy: 'Emily Chen (Buyer)',     respondent: 'David Thompson (Owner)',   propertyTitle: 'Coastal Beach House',   submittedDate: '2026-05-07', status: 'resolved',      priority: 'low',    description: 'Buyer reported inaccurate square footage in listing. Resolved: listing updated.' },
 ];
 
 const notifications: Notification[] = [
@@ -208,25 +209,29 @@ export default function AdminDashboardPage() {
   const [selectedReport, setSelectedReport] = useState<InspectionReportReview | null>(null);
   const [selectedDispute, setSelectedDispute] = useState<Dispute | null>(null);
   const [actionReason, setActionReason] = useState('');
+  const [listingFilter, setListingFilter] = useState<'all' | 'active' | 'flagged' | 'suspended'>('all');
+  const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'buyer' | 'owner' | 'agent' | 'inspector'>('all');
+  const [reportFilter, setReportFilter] = useState<'all' | 'active' | 'flagged'>('all');
+  const [disputeFilter, setDisputeFilter] = useState<'all' | 'open' | 'investigating' | 'resolved'>('all');
 
   const formatPrice = (price: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(price);
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': case 'approved': return 'bg-green-100 text-green-700 border-green-200';
+      case 'active': case 'approved':   return 'bg-green-100 text-green-700 border-green-200';
       case 'pending': case 'reviewing': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case 'suspended': case 'rejected': return 'bg-red-100 text-red-700 border-red-200';
-      default: return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'suspended': case 'rejected':return 'bg-red-100 text-red-700 border-red-200';
+      default:                          return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case 'buyer': return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'owner': return 'bg-green-100 text-green-700 border-green-200';
-      case 'agent': return 'bg-purple-100 text-purple-700 border-purple-200';
-      default:      return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'buyer':     return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'owner':     return 'bg-green-100 text-green-700 border-green-200';
+      case 'agent':     return 'bg-purple-100 text-purple-700 border-purple-200';
+      default:          return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
 
@@ -239,7 +244,25 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const clearAction = () => { setSelectedListing(null); setSelectedUser(null); setSelectedReport(null); setSelectedDispute(null); setActionReason(''); };
+  const clearAction = () => {
+    setSelectedListing(null);
+    setSelectedUser(null);
+    setSelectedReport(null);
+    setSelectedDispute(null);
+    setActionReason('');
+  };
+
+  const getFilteredListings = () =>
+    listingFilter === 'all' ? managedListings : managedListings.filter(l => l.status === listingFilter);
+
+  const getFilteredUsers = () =>
+    userRoleFilter === 'all' ? platformUsers : platformUsers.filter(u => u.role === userRoleFilter);
+
+  const getFilteredReports = () =>
+    reportFilter === 'all' ? inspectionReports : inspectionReports.filter(r => r.status === reportFilter);
+
+  const getFilteredDisputes = () =>
+    disputeFilter === 'all' ? disputes : disputes.filter(d => d.status === disputeFilter);
 
   const Sidebar = () => (
     <div className="h-full bg-gradient-to-br from-gray-700 via-gray-600 to-gray-700 flex flex-col shadow-2xl">
@@ -271,18 +294,18 @@ export default function AdminDashboardPage() {
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-2">
         {[
-          { tab: 'dashboard',     icon: <BarChart3 size={20} />,     label: 'Analytics' },
-          { tab: 'verifications', icon: <UserCheck size={20} />,     label: 'Verifications',
+          { tab: 'dashboard',     icon: <BarChart3      size={20} />, label: 'Analytics' },
+          { tab: 'verifications', icon: <UserCheck      size={20} />, label: 'Verifications',
             count: pendingVerifications.length, countColor: 'bg-orange-600' },
-          { tab: 'listings',      icon: <Building size={20} />,      label: 'Listings',
+          { tab: 'listings',      icon: <Building       size={20} />, label: 'Listings',
             count: managedListings.filter(l => l.status === 'flagged').length, countColor: 'bg-red-600' },
-          { tab: 'users',         icon: <Users size={20} />,         label: 'Users',
+          { tab: 'users',         icon: <Users          size={20} />, label: 'Users',
             count: platformUsers.length },
-          { tab: 'reports',       icon: <ClipboardCheck size={20} />,label: 'Reports',
+          { tab: 'reports',       icon: <ClipboardCheck size={20} />, label: 'Reports',
             count: inspectionReports.filter(r => r.status === 'flagged').length, countColor: 'bg-orange-600' },
-          { tab: 'disputes',      icon: <MessageSquare size={20} />, label: 'Disputes',
+          { tab: 'disputes',      icon: <MessageSquare  size={20} />, label: 'Disputes',
             count: disputes.filter(d => d.status === 'open').length, countColor: 'bg-red-600' },
-          { tab: 'notifications', icon: <Bell size={20} />,          label: 'Notifications',
+          { tab: 'notifications', icon: <Bell           size={20} />, label: 'Notifications',
             count: notifications.filter(n => !n.read).length, countColor: 'bg-red-600' },
         ].map(({ tab, icon, label, count, countColor }) => (
           <button
@@ -372,13 +395,12 @@ export default function AdminDashboardPage() {
           {/* ── Analytics Tab ── */}
           {activeTab === 'dashboard' && (
             <div className="space-y-8">
-              {/* Stats */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
-                  { label: 'Active Listings',        value: managedListings.filter(l => l.status === 'active').length,                               sub: '+8% this week',           subColor: 'text-green-600', icon: <Building className="text-blue-500" size={24} /> },
-                  { label: 'Flagged Listings',        value: managedListings.filter(l => l.status === 'flagged' || l.status === 'suspended').length,  sub: 'Requires attention',      subColor: 'text-orange-600',icon: <Flag      className="text-orange-500" size={24} /> },
-                  { label: 'Pending Verifications',   value: pendingVerifications.length,                                                             sub: '72h review window',       subColor: 'text-purple-600',icon: <Clock     className="text-purple-500" size={24} /> },
-                  { label: 'Open Disputes',           value: disputes.filter(d => d.status === 'open' || d.status === 'investigating').length,        sub: 'Immediate action needed', subColor: 'text-red-600',   icon: <MessageSquare className="text-red-500" size={24} /> },
+                  { label: 'Active Listings',       value: managedListings.filter(l => l.status === 'active').length,                              sub: '+8% this week',           subColor: 'text-green-600',  icon: <Building      className="text-blue-500"    size={24} /> },
+                  { label: 'Flagged Listings',       value: managedListings.filter(l => l.status === 'flagged' || l.status === 'suspended').length, sub: 'Requires attention',      subColor: 'text-orange-600', icon: <Flag          className="text-orange-500"  size={24} /> },
+                  { label: 'Pending Verifications',  value: pendingVerifications.length,                                                            sub: '72h review window',       subColor: 'text-purple-600', icon: <Clock         className="text-purple-500"  size={24} /> },
+                  { label: 'Open Disputes',          value: disputes.filter(d => d.status === 'open' || d.status === 'investigating').length,       sub: 'Immediate action needed', subColor: 'text-red-600',    icon: <MessageSquare className="text-red-500"     size={24} /> },
                 ].map((stat) => (
                   <div key={stat.label} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
                     <div className="flex items-center justify-between mb-2">
@@ -417,7 +439,7 @@ export default function AdminDashboardPage() {
                         label={({ name, percent }: { name?: string; percent?: number }) => `${name ?? ''} ${((percent ?? 0) * 100).toFixed(0)}%`}
                         outerRadius={90} fill="#8884d8" dataKey="value">
                         {userDistributionData.map((entry) => (
-                          <Cell key={`user-dist-${entry.name}`} fill={entry.color} />
+                          <Cell key={`cell-${entry.name}`} fill={entry.color} />
                         ))}
                       </Pie>
                       <Tooltip />
@@ -462,30 +484,19 @@ export default function AdminDashboardPage() {
 
               {/* Quick Stats */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white">
-                  <Activity className="text-white/80 mb-4" size={32} />
-                  <p className="text-sm font-semibold text-white/90 mb-2">Total Listings</p>
-                  <p className="text-4xl font-bold mb-1">{managedListings.length}</p>
-                  <p className="text-sm text-white/80">{managedListings.filter(l => l.status === 'active').length} active</p>
-                </div>
-                <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 text-white">
-                  <UserCheck className="text-white/80 mb-4" size={32} />
-                  <p className="text-sm font-semibold text-white/90 mb-2">Verified Users</p>
-                  <p className="text-4xl font-bold mb-1">{platformUsers.filter(u => u.verificationStatus === 'verified').length}</p>
-                  <p className="text-sm text-white/80">Out of {platformUsers.length} total</p>
-                </div>
-                <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 text-white">
-                  <ClipboardCheck className="text-white/80 mb-4" size={32} />
-                  <p className="text-sm font-semibold text-white/90 mb-2">Inspection Reports</p>
-                  <p className="text-4xl font-bold mb-1">{inspectionReports.length}</p>
-                  <p className="text-sm text-white/80">{inspectionReports.filter(r => r.status === 'flagged').length} flagged</p>
-                </div>
-                <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white">
-                  <DollarSign className="text-white/80 mb-4" size={32} />
-                  <p className="text-sm font-semibold text-white/90 mb-2">Platform Revenue</p>
-                  <p className="text-4xl font-bold mb-1">$1.02M</p>
-                  <p className="text-sm text-white/80">This month</p>
-                </div>
+                {[
+                  { gradient: 'from-blue-500 to-blue-600',     icon: <Activity      className="text-white/80 mb-4" size={32} />, label: 'Total Listings',      value: managedListings.length,                                                  sub: `${managedListings.filter(l => l.status === 'active').length} active` },
+                  { gradient: 'from-green-500 to-green-600',   icon: <UserCheck     className="text-white/80 mb-4" size={32} />, label: 'Verified Users',      value: platformUsers.filter(u => u.verificationStatus === 'verified').length,   sub: `Out of ${platformUsers.length} total` },
+                  { gradient: 'from-orange-500 to-orange-600', icon: <ClipboardCheck className="text-white/80 mb-4" size={32} />, label: 'Inspection Reports', value: inspectionReports.length,                                                sub: `${inspectionReports.filter(r => r.status === 'flagged').length} flagged` },
+                  { gradient: 'from-purple-500 to-purple-600', icon: <DollarSign    className="text-white/80 mb-4" size={32} />, label: 'Platform Revenue',    value: '$1.02M',                                                                sub: 'This month' },
+                ].map((stat) => (
+                  <div key={stat.label} className={`bg-gradient-to-br ${stat.gradient} rounded-2xl p-6 text-white`}>
+                    {stat.icon}
+                    <p className="text-sm font-semibold text-white/90 mb-2">{stat.label}</p>
+                    <p className="text-4xl font-bold mb-1">{stat.value}</p>
+                    <p className="text-sm text-white/80">{stat.sub}</p>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -529,12 +540,6 @@ export default function AdminDashboardPage() {
                     </div>
                   </div>
                 ))}
-                {pendingVerifications.length === 0 && (
-                  <div className="text-center py-12">
-                    <CheckCircle className="mx-auto text-green-500 mb-4" size={48} />
-                    <p className="text-gray-600 font-semibold">All verifications processed!</p>
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -543,89 +548,48 @@ export default function AdminDashboardPage() {
           {activeTab === 'listings' && (
             <div className="space-y-6">
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2 inline-flex gap-2">
-                {['All Listings', 'Active', 'Flagged', 'Suspended'].map((label) => (
-                  <button key={label} className={`px-4 py-2 font-semibold rounded-lg transition-colors ${label === 'All Listings' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
-                    {label}
+                {(['all', 'active', 'flagged', 'suspended'] as const).map((f) => (
+                  <button key={f} onClick={() => setListingFilter(f)}
+                    className={`px-4 py-2 font-semibold rounded-lg transition-colors capitalize ${listingFilter === f ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
+                    {f === 'all' ? 'All Listings' : f.charAt(0).toUpperCase() + f.slice(1)}
                   </button>
                 ))}
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {managedListings.map((listing) => (
-                  <div key={listing.id} className="bg-white rounded-xl overflow-hidden border-2 border-gray-200 hover:shadow-lg transition-all">
-                    <div className="relative h-48 overflow-hidden">
-                      <img src={listing.image} alt={listing.title} className="w-full h-full object-cover"
-                        onError={(e) => ((e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg')} />
-                      <div className="absolute top-4 right-4">
-                        <span className={`px-3 py-1.5 text-xs font-bold rounded-lg border-2 backdrop-blur-sm bg-white/90 ${getStatusColor(listing.status)}`}>
-                          {listing.status.toUpperCase()}
-                        </span>
-                      </div>
-                      {listing.flagCount > 0 && (
-                        <div className="absolute top-4 left-4">
-                          <span className="px-3 py-1.5 text-xs font-bold rounded-lg border-2 bg-red-100 text-red-700 border-red-200 backdrop-blur-sm">
-                            {listing.flagCount} FLAGS
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-5">
-                      <p className="text-2xl font-bold text-blue-600 mb-2">{formatPrice(listing.price)}</p>
-                      <h3 className="text-lg font-bold text-gray-900 mb-2">{listing.title}</h3>
-                      <div className="flex items-center gap-2 text-gray-600 mb-4"><MapPin size={16} /><span className="text-sm">{listing.location}</span></div>
-                      <div className="flex items-center justify-between py-3 border-t border-b border-gray-200 mb-4">
-                        <div className="flex items-center gap-1.5 text-gray-700"><Bed    size={18} className="text-blue-600" /><span className="text-sm font-semibold">{listing.bedrooms}</span></div>
-                        <div className="flex items-center gap-1.5 text-gray-700"><Bath   size={18} className="text-blue-600" /><span className="text-sm font-semibold">{listing.bathrooms}</span></div>
-                        <div className="flex items-center gap-1.5 text-gray-700"><Square size={18} className="text-blue-600" /><span className="text-sm font-semibold">{listing.area}</span></div>
-                        <div className="flex items-center gap-1.5 text-gray-700"><Eye    size={18} className="text-blue-600" /><span className="text-sm font-semibold">{listing.views}</span></div>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
-                        <Users size={16} /><span>Owner: <span className="font-semibold text-gray-900">{listing.owner}</span></span>
-                      </div>
-
-                      {selectedListing?.id === listing.id ? (
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">Action Reason (Required)</label>
-                            <textarea value={actionReason} onChange={(e) => setActionReason(e.target.value)}
-                              placeholder="Explain why this action is being taken..."
-                              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" rows={3} />
-                          </div>
-                          <div className="flex gap-2">
-                            <button onClick={() => { console.log('Flag listing:', listing.id, actionReason); clearAction(); }} disabled={!actionReason.trim()}
-                              className="flex-1 py-2.5 bg-orange-600 text-white font-semibold rounded-lg hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-                              <Flag size={16} /> Flag
-                            </button>
-                            <button onClick={() => { console.log('Suspend listing:', listing.id, actionReason); clearAction(); }} disabled={!actionReason.trim()}
-                              className="flex-1 py-2.5 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-                              <Ban size={16} /> Suspend
-                            </button>
-                            <button onClick={() => { console.log('Remove listing:', listing.id, actionReason); clearAction(); }} disabled={!actionReason.trim()}
-                              className="flex-1 py-2.5 bg-gray-800 text-white font-semibold rounded-lg hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-                              <Trash2 size={16} /> Remove
-                            </button>
-                            <button onClick={clearAction} className="px-4 py-2.5 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors">Cancel</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button onClick={() => setSelectedListing(listing)} className="w-full py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
-                          <Edit size={16} /> Manage Listing
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              {getFilteredListings().length > 0 ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {getFilteredListings().map((listing) => (
+                    <ListingCard
+                      key={listing.id}
+                      {...listing}
+                      isSelected={selectedListing?.id === listing.id}
+                      actionReason={actionReason}
+                      onSelect={() => setSelectedListing(listing)}
+                      onCancel={clearAction}
+                      onActionReasonChange={setActionReason}
+                      onFlag={() => { console.log('Flag:', listing.id, actionReason); clearAction(); }}
+                      onSuspend={() => { console.log('Suspend:', listing.id, actionReason); clearAction(); }}
+                      onRemove={() => { console.log('Remove:', listing.id, actionReason); clearAction(); }}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 text-center">
+                  <Building className="mx-auto text-gray-400 mb-4" size={48} />
+                  <p className="text-gray-600 font-semibold">No listings found</p>
+                </div>
+              )}
             </div>
           )}
 
           {/* ── Users Tab ── */}
           {activeTab === 'users' && (
             <div className="space-y-6">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2 inline-flex gap-2">
-                {['All Users', 'Buyers', 'Owners', 'Agents', 'Inspectors'].map((label) => (
-                  <button key={label} className={`px-4 py-2 font-semibold rounded-lg transition-colors ${label === 'All Users' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
-                    {label}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2 inline-flex gap-2 flex-wrap">
+                {(['all', 'buyer', 'owner', 'agent', 'inspector'] as const).map((f) => (
+                  <button key={f} onClick={() => setUserRoleFilter(f)}
+                    className={`px-4 py-2 font-semibold rounded-lg transition-colors ${userRoleFilter === f ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
+                    {f === 'all' ? 'All Users' : f.charAt(0).toUpperCase() + f.slice(1) + 's'}
                   </button>
                 ))}
               </div>
@@ -641,7 +605,7 @@ export default function AdminDashboardPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {platformUsers.map((user) => (
+                      {getFilteredUsers().map((user) => (
                         <tr key={user.id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
@@ -658,7 +622,7 @@ export default function AdminDashboardPage() {
                             <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${getRoleColor(user.role)}`}>{user.role.toUpperCase()}</span>
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${getStatusColor(user.status)}`}>{user.status.replace('_', ' ').toUpperCase()}</span>
+                            <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${getStatusColor(user.status)}`}>{user.status.replace(/_/g, ' ').toUpperCase()}</span>
                           </td>
                           <td className="px-6 py-4">
                             <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${
@@ -700,9 +664,9 @@ export default function AdminDashboardPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
                 {[
-                  { role: 'buyer',     label: 'Buyers',     icon: <Users         className="text-blue-600"   size={32} /> },
-                  { role: 'owner',     label: 'Owners',     icon: <Home          className="text-green-600"  size={32} /> },
-                  { role: 'agent',     label: 'Agents',     icon: <Shield        className="text-purple-600" size={32} /> },
+                  { role: 'buyer',     label: 'Buyers',     icon: <Users          className="text-blue-600"   size={32} /> },
+                  { role: 'owner',     label: 'Owners',     icon: <Home           className="text-green-600"  size={32} /> },
+                  { role: 'agent',     label: 'Agents',     icon: <Shield         className="text-purple-600" size={32} /> },
                   { role: 'inspector', label: 'Inspectors', icon: <ClipboardCheck className="text-orange-600" size={32} /> },
                 ].map(({ role, label, icon }) => (
                   <div key={role} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -721,15 +685,16 @@ export default function AdminDashboardPage() {
           {activeTab === 'reports' && (
             <div className="space-y-6">
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2 inline-flex gap-2">
-                {['All Reports', 'Active', 'Flagged'].map((label) => (
-                  <button key={label} className={`px-4 py-2 font-semibold rounded-lg transition-colors ${label === 'All Reports' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
-                    {label}
+                {(['all', 'active', 'flagged'] as const).map((f) => (
+                  <button key={f} onClick={() => setReportFilter(f)}
+                    className={`px-4 py-2 font-semibold rounded-lg transition-colors ${reportFilter === f ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
+                    {f === 'all' ? 'All Reports' : f.charAt(0).toUpperCase() + f.slice(1)}
                   </button>
                 ))}
               </div>
 
               <div className="space-y-4">
-                {inspectionReports.map((report) => (
+                {getFilteredReports().map((report) => (
                   <div key={report.id} className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:shadow-lg transition-all">
                     <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
                       <div className="flex-1">
@@ -740,7 +705,7 @@ export default function AdminDashboardPage() {
                             report.verdict === 'passed'                 ? 'bg-green-100 text-green-700 border-green-200' :
                             report.verdict === 'passed_with_conditions' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
                                                                           'bg-red-100 text-red-700 border-red-200'
-                          }`}>{report.verdict.replace('_', ' ').toUpperCase()}</span>
+                          }`}>{report.verdict.replace(/_/g, ' ').toUpperCase()}</span>
                         </div>
                         <div className="space-y-2 mb-4">
                           <div className="flex items-center gap-2 text-sm text-gray-700"><Users    size={16} className="text-gray-500" /><span>Inspector: <span className="font-semibold">{report.inspectorName}</span></span></div>
@@ -785,16 +750,16 @@ export default function AdminDashboardPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 {[
-                  { label: 'Passed',                 verdict: 'passed',                  bg: 'bg-green-50',  border: 'border-green-200',  textColor: 'text-green-600',  titleColor: 'text-green-900',  icon: <CheckCircle className="text-green-600" size={32} /> },
-                  { label: 'Passed with Conditions', verdict: 'passed_with_conditions',  bg: 'bg-yellow-50', border: 'border-yellow-200', textColor: 'text-yellow-600', titleColor: 'text-yellow-900', icon: <AlertCircle className="text-yellow-600" size={32} /> },
-                  { label: 'Failed',                 verdict: 'failed',                  bg: 'bg-red-50',    border: 'border-red-200',    textColor: 'text-red-600',    titleColor: 'text-red-900',    icon: <XCircle     className="text-red-600"    size={32} /> },
-                ].map(({ label, verdict, bg, border, textColor, titleColor, icon }) => (
+                  { verdict: 'passed',                 label: 'Passed',                 bg: 'bg-green-50',  border: 'border-green-200',  tc: 'text-green-600',  icon: <CheckCircle className="text-green-600"  size={32} /> },
+                  { verdict: 'passed_with_conditions', label: 'Passed with Conditions', bg: 'bg-yellow-50', border: 'border-yellow-200', tc: 'text-yellow-600', icon: <AlertCircle className="text-yellow-600" size={32} /> },
+                  { verdict: 'failed',                 label: 'Failed',                 bg: 'bg-red-50',    border: 'border-red-200',    tc: 'text-red-600',    icon: <XCircle     className="text-red-600"    size={32} /> },
+                ].map(({ verdict, label, bg, border, tc, icon }) => (
                   <div key={verdict} className={`${bg} rounded-xl p-6 border-2 ${border}`}>
                     <div className="flex items-center justify-between mb-4">
                       {icon}
-                      <span className={`text-3xl font-bold ${textColor}`}>{inspectionReports.filter(r => r.verdict === verdict).length}</span>
+                      <span className={`text-3xl font-bold ${tc}`}>{inspectionReports.filter(r => r.verdict === verdict).length}</span>
                     </div>
-                    <p className={`text-sm font-semibold ${titleColor}`}>{label}</p>
+                    <p className={`text-sm font-semibold ${tc.replace('600', '900')}`}>{label}</p>
                   </div>
                 ))}
               </div>
@@ -805,15 +770,16 @@ export default function AdminDashboardPage() {
           {activeTab === 'disputes' && (
             <div className="space-y-6">
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2 inline-flex gap-2">
-                {['All Disputes', 'Open', 'Investigating', 'Resolved'].map((label) => (
-                  <button key={label} className={`px-4 py-2 font-semibold rounded-lg transition-colors ${label === 'All Disputes' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
-                    {label}
+                {(['all', 'open', 'investigating', 'resolved'] as const).map((f) => (
+                  <button key={f} onClick={() => setDisputeFilter(f)}
+                    className={`px-4 py-2 font-semibold rounded-lg transition-colors ${disputeFilter === f ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
+                    {f === 'all' ? 'All Disputes' : f.charAt(0).toUpperCase() + f.slice(1)}
                   </button>
                 ))}
               </div>
 
               <div className="space-y-4">
-                {disputes.map((dispute) => (
+                {getFilteredDisputes().map((dispute) => (
                   <div key={dispute.id} className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:shadow-lg transition-all">
                     <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
                       <div className="flex-1">
@@ -825,14 +791,14 @@ export default function AdminDashboardPage() {
                             dispute.disputeType === 'listing'      ? 'bg-blue-100 text-blue-700 border-blue-200' :
                             dispute.disputeType === 'inspection'   ? 'bg-orange-100 text-orange-700 border-orange-200' :
                                                                      'bg-red-100 text-red-700 border-red-200'
-                          }`}>{dispute.disputeType.replace('_', ' ').toUpperCase()}</span>
+                          }`}>{dispute.disputeType.replace(/_/g, ' ').toUpperCase()}</span>
                         </div>
                         <div className="space-y-2 mb-4">
                           <div className="flex items-center gap-2 text-sm text-gray-700"><Users    size={16} className="text-gray-500" /><span>Initiated by: <span className="font-semibold">{dispute.initiatedBy}</span></span></div>
                           <div className="flex items-center gap-2 text-sm text-gray-700"><Users    size={16} className="text-gray-500" /><span>Respondent: <span className="font-semibold">{dispute.respondent}</span></span></div>
                           <div className="flex items-center gap-2 text-sm text-gray-700"><Calendar size={16} className="text-gray-500" /><span>Submitted: <span className="font-semibold">{dispute.submittedDate}</span></span></div>
                           <div className="flex items-center gap-3 mt-2">
-                            <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${getStatusColor(dispute.status)}`}>{dispute.status.replace('_', ' ').toUpperCase()}</span>
+                            <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${getStatusColor(dispute.status)}`}>{dispute.status.replace(/_/g, ' ').toUpperCase()}</span>
                             <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${getPriorityColor(dispute.priority)}`}>{dispute.priority.toUpperCase()} PRIORITY</span>
                           </div>
                         </div>
@@ -871,17 +837,17 @@ export default function AdminDashboardPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
                 {[
-                  { status: 'open',          label: 'Open',          bg: 'bg-red-50',    border: 'border-red-200',    textColor: 'text-red-600',    titleColor: 'text-red-900',    icon: <AlertCircle  className="text-red-600"    size={32} /> },
-                  { status: 'investigating', label: 'Investigating',  bg: 'bg-yellow-50', border: 'border-yellow-200', textColor: 'text-yellow-600', titleColor: 'text-yellow-900', icon: <Search       className="text-yellow-600" size={32} /> },
-                  { status: 'resolved',      label: 'Resolved',       bg: 'bg-green-50',  border: 'border-green-200',  textColor: 'text-green-600',  titleColor: 'text-green-900',  icon: <CheckCircle  className="text-green-600"  size={32} /> },
-                  { status: 'closed',        label: 'Closed',         bg: 'bg-blue-50',   border: 'border-blue-200',   textColor: 'text-blue-600',   titleColor: 'text-blue-900',   icon: <XCircle      className="text-blue-600"   size={32} /> },
-                ].map(({ status, label, bg, border, textColor, titleColor, icon }) => (
+                  { status: 'open',          label: 'Open',         bg: 'bg-red-50',    border: 'border-red-200',    tc: 'text-red-600',    icon: <AlertCircle  className="text-red-600"    size={32} /> },
+                  { status: 'investigating', label: 'Investigating', bg: 'bg-yellow-50', border: 'border-yellow-200', tc: 'text-yellow-600', icon: <Search       className="text-yellow-600" size={32} /> },
+                  { status: 'resolved',      label: 'Resolved',     bg: 'bg-green-50',  border: 'border-green-200',  tc: 'text-green-600',  icon: <CheckCircle  className="text-green-600"  size={32} /> },
+                  { status: 'closed',        label: 'Closed',       bg: 'bg-blue-50',   border: 'border-blue-200',   tc: 'text-blue-600',   icon: <XCircle      className="text-blue-600"   size={32} /> },
+                ].map(({ status, label, bg, border, tc, icon }) => (
                   <div key={status} className={`${bg} rounded-xl p-6 border-2 ${border}`}>
                     <div className="flex items-center justify-between mb-4">
                       {icon}
-                      <span className={`text-3xl font-bold ${textColor}`}>{disputes.filter(d => d.status === status).length}</span>
+                      <span className={`text-3xl font-bold ${tc}`}>{disputes.filter(d => d.status === status).length}</span>
                     </div>
-                    <p className={`text-sm font-semibold ${titleColor}`}>{label}</p>
+                    <p className={`text-sm font-semibold ${tc.replace('600', '900')}`}>{label}</p>
                   </div>
                 ))}
               </div>
@@ -900,9 +866,9 @@ export default function AdminDashboardPage() {
                   <div key={n.id} className={`p-5 rounded-xl border-2 transition-all ${!n.read ? 'bg-blue-50 border-blue-200 hover:shadow-md' : 'bg-gray-50 border-gray-200 hover:shadow-sm'}`}>
                     <div className="flex items-start gap-4">
                       <div className={`p-2 rounded-lg ${n.type === 'verification' ? 'bg-blue-100' : n.type === 'dispute' ? 'bg-red-100' : n.type === 'flag' ? 'bg-orange-100' : 'bg-purple-100'}`}>
-                        {n.type === 'verification' && <UserCheck     className="text-blue-600"   size={20} />}
-                        {n.type === 'dispute'      && <MessageSquare className="text-red-600"    size={20} />}
-                        {n.type === 'flag'         && <Flag          className="text-orange-600" size={20} />}
+                        {n.type === 'verification' && <UserCheck      className="text-blue-600"   size={20} />}
+                        {n.type === 'dispute'      && <MessageSquare  className="text-red-600"    size={20} />}
+                        {n.type === 'flag'         && <Flag           className="text-orange-600" size={20} />}
                         {n.type === 'report'       && <ClipboardCheck className="text-purple-600" size={20} />}
                       </div>
                       <div className="flex-1">
