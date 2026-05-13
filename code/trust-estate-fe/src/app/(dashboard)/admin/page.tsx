@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { adminService, type PendingVerification } from '@/services/admin.service';
+import { ApiRequestError } from '@/lib/api-client';
 import Link from 'next/link';
 import {
   Home,
@@ -56,16 +58,6 @@ import {
 } from 'recharts';
 import { ListingCard } from '@/components/admin/ListingCard';
 
-interface PendingVerification {
-  id: number;
-  userName: string;
-  userEmail: string;
-  role: 'buyer' | 'owner' | 'agent' | 'inspector';
-  documentType: 'identity' | 'license' | 'certification';
-  submittedDate: string;
-  expiresIn: string;
-  documentUrl: string;
-}
 
 interface ManagedListing {
   id: number;
@@ -126,11 +118,6 @@ interface Notification {
   read: boolean;
 }
 
-const pendingVerifications: PendingVerification[] = [
-  { id: 1, userName: 'Robert Chen',  userEmail: 'robert.c@email.com', role: 'agent',     documentType: 'license',       submittedDate: '2026-05-08', expiresIn: '48h', documentUrl: '#' },
-  { id: 2, userName: 'Maria Garcia', userEmail: 'maria.g@email.com',  role: 'inspector', documentType: 'certification', submittedDate: '2026-05-09', expiresIn: '24h', documentUrl: '#' },
-  { id: 3, userName: 'James Wilson', userEmail: 'james.w@email.com',  role: 'owner',     documentType: 'identity',      submittedDate: '2026-05-07', expiresIn: '72h', documentUrl: '#' },
-];
 
 const managedListings: ManagedListing[] = [
   { id: 1, title: 'Luxury Estate Mansion',       price: 4500000, location: 'Beverly Hills, CA', bedrooms: 7, bathrooms: 6, area: 8500, image: 'https://images.unsplash.com/photo-1505843795480-5cfb3c03f6ff?w=600&auto=format&fit=crop',  owner: 'Robert Chen',       status: 'active',    views: 1247, flagCount: 0 },
@@ -213,6 +200,56 @@ export default function AdminDashboardPage() {
   const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'buyer' | 'owner' | 'agent' | 'inspector'>('all');
   const [reportFilter, setReportFilter] = useState<'all' | 'active' | 'flagged'>('all');
   const [disputeFilter, setDisputeFilter] = useState<'all' | 'open' | 'investigating' | 'resolved'>('all');
+
+  // ── Verifications API state
+  const [pendingVerifications, setPendingVerifications] = useState<PendingVerification[]>([]);
+  const [verificationsLoading, setVerificationsLoading] = useState(false);
+  const [verificationsError, setVerificationsError] = useState<string | null>(null);
+  const [actioningId, setActioningId] = useState<number | null>(null);
+
+  const loadVerifications = useCallback(async () => {
+    setVerificationsLoading(true);
+    setVerificationsError(null);
+    try {
+      const data = await adminService.getPendingVerifications();
+      setPendingVerifications(data);
+    } catch (err) {
+      setVerificationsError(
+        err instanceof ApiRequestError ? err.apiError.message : 'Failed to load verifications.',
+      );
+    } finally {
+      setVerificationsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadVerifications();
+  }, [loadVerifications]);
+
+  const handleApprove = async (userId: number) => {
+    setActioningId(userId);
+    try {
+      await adminService.approveVerification(userId);
+      setPendingVerifications((prev) => prev.filter((v) => v.userId !== userId));
+    } catch (err) {
+      alert(err instanceof ApiRequestError ? err.apiError.message : 'Failed to approve user.');
+    } finally {
+      setActioningId(null);
+    }
+  };
+
+  const handleReject = async (userId: number) => {
+    if (!window.confirm('Are you sure you want to reject this application?')) return;
+    setActioningId(userId);
+    try {
+      await adminService.rejectVerification(userId);
+      setPendingVerifications((prev) => prev.filter((v) => v.userId !== userId));
+    } catch (err) {
+      alert(err instanceof ApiRequestError ? err.apiError.message : 'Failed to reject user.');
+    } finally {
+      setActioningId(null);
+    }
+  };
 
   const formatPrice = (price: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(price);
@@ -504,42 +541,76 @@ export default function AdminDashboardPage() {
           {/* ── Verifications Tab ── */}
           {activeTab === 'verifications' && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-              <p className="text-gray-600 mb-6">
-                {pendingVerifications.length} verification{pendingVerifications.length !== 1 ? 's' : ''} pending approval (72-hour review window)
-              </p>
+              {verificationsLoading && (
+                <p className="text-gray-500 text-sm mb-4">Loading pending verifications…</p>
+              )}
+              {verificationsError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                  {verificationsError}
+                  <button onClick={loadVerifications} className="ml-3 underline font-semibold">Retry</button>
+                </div>
+              )}
+              {!verificationsLoading && !verificationsError && (
+                <p className="text-gray-600 mb-6">
+                  {pendingVerifications.length} verification{pendingVerifications.length !== 1 ? 's' : ''} pending approval (72-hour review window)
+                </p>
+              )}
               <div className="space-y-4">
-                {pendingVerifications.map((v) => (
-                  <div key={v.id} className="p-6 bg-gray-50 rounded-xl border-2 border-gray-200 hover:shadow-md transition-all">
-                    <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-3">
-                          <UserCheck className="text-blue-600" size={24} />
-                          <h3 className="text-xl font-bold text-gray-900">{v.userName}</h3>
-                          <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${getRoleColor(v.role)}`}>
-                            {v.role.toUpperCase()}
-                          </span>
+                {pendingVerifications.map((v) => {
+                  const isActioning = actioningId === v.userId;
+                  const roleLabel = v.role === 'PropertyInspector' ? 'INSPECTOR' : v.role.toUpperCase();
+                  const roleColorClass = v.role === 'Agent'
+                    ? 'bg-purple-100 text-purple-700 border-purple-200'
+                    : 'bg-amber-100 text-amber-700 border-amber-200';
+                  return (
+                    <div key={v.userId} className="p-6 bg-gray-50 rounded-xl border-2 border-gray-200 hover:shadow-md transition-all">
+                      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-3">
+                            <UserCheck className="text-blue-600" size={24} />
+                            <h3 className="text-xl font-bold text-gray-900">{v.firstName} {v.lastName}</h3>
+                            <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${roleColorClass}`}>
+                              {roleLabel}
+                            </span>
+                          </div>
+                          <div className="space-y-2 mb-4">
+                            <div className="flex items-center gap-2 text-sm text-gray-700"><Mail size={16} className="text-gray-500" /><span>{v.email}</span></div>
+                            <div className="flex items-center gap-2 text-sm text-gray-700"><Calendar size={16} className="text-gray-500" /><span>Registered: <span className="font-semibold">{new Date(v.registeredAt).toLocaleDateString()}</span></span></div>
+                            {v.role === 'Agent' && v.agencyType && (
+                              <div className="flex items-center gap-2 text-sm text-gray-700"><FileText size={16} className="text-gray-500" /><span>Agency: <span className="font-semibold">{v.agencyType}{v.agencyName ? ` — ${v.agencyName}` : ''}</span></span></div>
+                            )}
+                            {v.role === 'PropertyInspector' && v.professionalQualifications && (
+                              <div className="flex items-start gap-2 text-sm text-gray-700"><FileText size={16} className="text-gray-500 mt-0.5 flex-shrink-0" /><span>Qualifications: <span className="font-semibold">{v.professionalQualifications}</span></span></div>
+                            )}
+                          </div>
                         </div>
-                        <div className="space-y-2 mb-4">
-                          <div className="flex items-center gap-2 text-sm text-gray-700"><Mail     size={16} className="text-gray-500" /><span>{v.userEmail}</span></div>
-                          <div className="flex items-center gap-2 text-sm text-gray-700"><FileText size={16} className="text-gray-500" /><span>Document type: <span className="font-semibold capitalize">{v.documentType.replace('_', ' ')}</span></span></div>
-                          <div className="flex items-center gap-2 text-sm text-gray-700"><Calendar size={16} className="text-gray-500" /><span>Submitted: <span className="font-semibold">{v.submittedDate}</span></span></div>
-                          <div className="flex items-center gap-2 text-sm"><Clock size={16} className="text-orange-500" /><span className="text-orange-600 font-semibold">Expires in: {v.expiresIn}</span></div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleApprove(v.userId)}
+                            disabled={isActioning}
+                            className="px-6 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <CheckCircle size={18} /> Approve
+                          </button>
+                          <button
+                            onClick={() => handleReject(v.userId)}
+                            disabled={isActioning}
+                            className="px-6 py-2.5 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <XCircle size={18} /> Reject
+                          </button>
                         </div>
-                        <button className="text-blue-600 hover:text-blue-700 text-sm font-semibold flex items-center gap-2 transition-colors">
-                          <Eye size={16} /> View Document
-                        </button>
-                      </div>
-                      <div className="flex gap-2">
-                        <button className="px-6 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2">
-                          <CheckCircle size={18} /> Approve
-                        </button>
-                        <button className="px-6 py-2.5 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2">
-                          <XCircle size={18} /> Reject
-                        </button>
                       </div>
                     </div>
+                  );
+                })}
+                {!verificationsLoading && pendingVerifications.length === 0 && !verificationsError && (
+                  <div className="text-center py-12">
+                    <CheckCircle className="mx-auto text-green-400 mb-3" size={48} />
+                    <p className="text-gray-600 font-semibold">No pending verifications</p>
+                    <p className="text-sm text-gray-500">All applications have been reviewed.</p>
                   </div>
-                ))}
+                )}
               </div>
             </div>
           )}

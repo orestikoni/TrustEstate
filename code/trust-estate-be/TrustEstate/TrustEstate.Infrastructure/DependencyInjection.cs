@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using TrustEstate.Application.Interfaces.Admin;
 using TrustEstate.Application.Interfaces.Auth;
 using TrustEstate.Application.Interfaces.Listings;
 using TrustEstate.Infrastructure.Persistence.Repositories;
@@ -17,6 +18,9 @@ public static class DependencyInjection
         // Listings
         services.AddScoped<IListingRepository, ListingRepository>();
         services.AddScoped<IListingService, ListingService>();
+
+        // Admin
+        services.AddScoped<IAdminService, AdminService>();
 
         return services;
     }
