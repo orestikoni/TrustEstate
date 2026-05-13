@@ -54,7 +54,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { ListingCard } from '@/components/admin/ListingCard';
+import { ListingCard } from '@/components/admin/ListingCard'; 
 
 interface PendingVerification {
   id: number;
