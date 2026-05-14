@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { notificationService, type ApiNotification, formatNotificationDate } from '@/services/notification.service';
 import Link from 'next/link';
 import {
   Home,
@@ -123,15 +124,6 @@ interface Conversation {
   unreadCount: number;
 }
 
-interface Notification {
-  id: number;
-  type: 'assignment' | 'offer' | 'correction_response' | 'inspection' | 'transaction' | 'message';
-  title: string;
-  message: string;
-  timestamp: string;
-  read: boolean;
-  listingId?: number;
-}
 
 const mockAssignments: ListingAssignment[] = [
   {
@@ -221,11 +213,6 @@ const mockConversations: Conversation[] = [
   { id: 2, listingId: 103, listingTitle: 'Elegant Villa Estate',   participantType: 'owner', participantName: 'David Thompson', participantId: 3,  lastMessage: "I've uploaded the new photos you requested.", lastMessageTime: '5 hours ago',  unreadCount: 1 },
 ];
 
-const mockNotifications: Notification[] = [
-  { id: 1, type: 'assignment',          title: 'New Listing Assignment',  message: 'Robert Chen has requested you to review Modern Luxury Villa',             timestamp: '1 hour ago',  read: false, listingId: 101 },
-  { id: 2, type: 'offer',               title: 'New Offer Received',      message: 'John Smith submitted an offer of $2,050,000 for Beachfront Paradise',     timestamp: '3 hours ago', read: false, listingId: 104 },
-  { id: 3, type: 'correction_response', title: 'Corrections Submitted',   message: 'David Thompson has resubmitted Elegant Villa Estate with corrections',     timestamp: '5 hours ago', read: false, listingId: 103 },
-];
 
 export default function AgentDashboardPage() {
   const [activeTab, setActiveTab] = useState<
@@ -241,6 +228,23 @@ export default function AgentDashboardPage() {
   const [counterMessage, setCounterMessage] = useState('');
   const [showInspectorModal, setShowInspectorModal] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [notifications, setNotifications] = useState<ApiNotification[]>([]);
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      const data = await notificationService.getNotifications();
+      setNotifications(data);
+    } catch { /* silently ignore */ }
+  }, []);
+
+  useEffect(() => { loadNotifications(); }, [loadNotifications]);
+
+  const handleMarkAsRead = useCallback(async (notificationId: number) => {
+    try {
+      await notificationService.markAsRead(notificationId);
+      setNotifications(prev => prev.map(n => n.notificationId === notificationId ? { ...n, isRead: true } : n));
+    } catch { /* silently ignore */ }
+  }, []);
 
   const formatPrice = (price: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(price);
@@ -334,7 +338,7 @@ export default function AgentDashboardPage() {
             count: mockConversations.reduce((s, c) => s + c.unreadCount, 0),
             countColor: 'bg-red-500' },
           { tab: 'notifications', icon: <Bell size={20} />,          label: 'Notifications',
-            count: mockNotifications.filter(n => !n.read).length,
+            count: notifications.filter(n => !n.isRead).length,
             countColor: 'bg-red-500' },
         ].map(({ tab, icon, label, count, countColor }) => (
           <button
@@ -520,20 +524,24 @@ export default function AgentDashboardPage() {
                     <button onClick={() => setActiveTab('notifications')} className="text-sm text-blue-600 hover:text-blue-700 font-semibold">View All</button>
                   </div>
                   <div className="space-y-3 max-h-[600px] overflow-y-auto">
-                    {mockNotifications.slice(0, 5).map((n) => (
-                      <div key={n.id} className={`p-3 rounded-xl border cursor-pointer ${n.read ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
+                    {notifications.slice(0, 5).map((n) => (
+                      <div key={n.notificationId} onClick={() => handleMarkAsRead(n.notificationId)} className={`p-3 rounded-xl border cursor-pointer ${n.isRead ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
                         <div className="flex items-start gap-3">
-                          <div className={`p-2 rounded-lg ${n.type === 'assignment' ? 'bg-yellow-100' : n.type === 'offer' ? 'bg-blue-100' : n.type === 'correction_response' ? 'bg-orange-100' : 'bg-gray-100'}`}>
-                            {n.type === 'assignment'          && <UserCheck   size={16} className="text-yellow-600" />}
-                            {n.type === 'offer'               && <FileText    size={16} className="text-blue-600" />}
-                            {n.type === 'correction_response' && <AlertCircle size={16} className="text-orange-600" />}
+                          <div className={`p-2 rounded-lg ${n.type === 'OfferResponse' ? 'bg-blue-100' : n.type === 'ListingStatus' ? 'bg-green-100' : n.type === 'InspectionUpdate' ? 'bg-purple-100' : n.type === 'DisputeUpdate' ? 'bg-red-100' : n.type === 'MessageReceived' ? 'bg-gray-100' : 'bg-blue-100'}`}>
+                            {n.type === 'OfferResponse'    && <FileText    size={16} className="text-blue-600" />}
+                            {n.type === 'ListingStatus'    && <CheckCircle size={16} className="text-green-600" />}
+                            {n.type === 'InspectionUpdate' && <ClipboardCheck size={16} className="text-purple-600" />}
+                            {n.type === 'DisputeUpdate'    && <AlertCircle size={16} className="text-red-600" />}
+                            {n.type === 'MessageReceived'  && <MessageSquare size={16} className="text-gray-600" />}
+                            {n.type === 'AccountDecision'  && <UserCheck   size={16} className="text-green-600" />}
+                            {n.type === 'TransactionClosed'&& <CheckCircle size={16} className="text-blue-600" />}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold text-gray-900 mb-1">{n.title}</p>
-                            <p className="text-xs text-gray-600 mb-1 line-clamp-2">{n.message}</p>
-                            <p className="text-xs text-gray-500">{n.timestamp}</p>
+                            <p className="text-xs text-gray-600 mb-1 line-clamp-2">{n.body}</p>
+                            <p className="text-xs text-gray-500">{formatNotificationDate(n.createdAt)}</p>
                           </div>
-                          {!n.read && <div className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-1" />}
+                          {!n.isRead && <div className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-1" />}
                         </div>
                       </div>
                     ))}
@@ -1061,23 +1069,27 @@ export default function AgentDashboardPage() {
             <div className="max-w-4xl mx-auto">
               <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
                 <p className="text-gray-700 font-semibold mb-6">
-                  You have {mockNotifications.filter(n => !n.read).length} unread notifications
+                  You have {notifications.filter(n => !n.isRead).length} unread notifications
                 </p>
                 <div className="space-y-3">
-                  {mockNotifications.map((n) => (
-                    <div key={n.id} className={`p-5 rounded-xl border transition-all ${n.read ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
+                  {notifications.map((n) => (
+                    <div key={n.notificationId} onClick={() => handleMarkAsRead(n.notificationId)} className={`p-5 rounded-xl border transition-all cursor-pointer ${n.isRead ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
                       <div className="flex items-start gap-4">
-                        <div className={`p-3 rounded-lg ${n.type === 'assignment' ? 'bg-yellow-100' : n.type === 'offer' ? 'bg-blue-100' : n.type === 'correction_response' ? 'bg-orange-100' : n.type === 'inspection' ? 'bg-purple-100' : 'bg-gray-100'}`}>
-                          {n.type === 'assignment'          && <UserCheck   size={16} className="text-yellow-600" />}
-                          {n.type === 'offer'               && <FileText    size={16} className="text-blue-600" />}
-                          {n.type === 'correction_response' && <AlertCircle size={16} className="text-orange-600" />}
+                        <div className={`p-3 rounded-lg ${n.type === 'OfferResponse' ? 'bg-blue-100' : n.type === 'ListingStatus' ? 'bg-green-100' : n.type === 'InspectionUpdate' ? 'bg-purple-100' : n.type === 'DisputeUpdate' ? 'bg-red-100' : n.type === 'MessageReceived' ? 'bg-gray-100' : 'bg-blue-100'}`}>
+                          {n.type === 'OfferResponse'    && <FileText    size={16} className="text-blue-600" />}
+                          {n.type === 'ListingStatus'    && <CheckCircle size={16} className="text-green-600" />}
+                          {n.type === 'InspectionUpdate' && <ClipboardCheck size={16} className="text-purple-600" />}
+                          {n.type === 'DisputeUpdate'    && <AlertCircle size={16} className="text-red-600" />}
+                          {n.type === 'MessageReceived'  && <MessageSquare size={16} className="text-gray-600" />}
+                          {n.type === 'AccountDecision'  && <UserCheck   size={16} className="text-green-600" />}
+                          {n.type === 'TransactionClosed'&& <CheckCircle size={16} className="text-blue-600" />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-lg font-bold text-gray-900 mb-2">{n.title}</p>
-                          <p className="text-sm text-gray-600 mb-2">{n.message}</p>
-                          <p className="text-xs text-gray-500">{n.timestamp}</p>
+                          <p className="text-sm text-gray-600 mb-2">{n.body}</p>
+                          <p className="text-xs text-gray-500">{formatNotificationDate(n.createdAt)}</p>
                         </div>
-                        {!n.read && <div className="w-3 h-3 bg-blue-600 rounded-full flex-shrink-0 mt-1" />}
+                        {!n.isRead && <div className="w-3 h-3 bg-blue-600 rounded-full flex-shrink-0 mt-1" />}
                       </div>
                     </div>
                   ))}

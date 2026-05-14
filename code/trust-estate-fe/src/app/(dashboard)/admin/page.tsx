@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { adminService, type PendingVerification } from '@/services/admin.service';
+import { notificationService, type ApiNotification, formatNotificationDate } from '@/services/notification.service';
 import { ApiRequestError } from '@/lib/api-client';
 import Link from 'next/link';
 import {
@@ -110,14 +111,6 @@ interface Dispute {
   description: string;
 }
 
-interface Notification {
-  id: number;
-  type: 'verification' | 'flag' | 'dispute' | 'report';
-  message: string;
-  timestamp: string;
-  read: boolean;
-}
-
 
 const managedListings: ManagedListing[] = [
   { id: 1, title: 'Luxury Estate Mansion',       price: 4500000, location: 'Beverly Hills, CA', bedrooms: 7, bathrooms: 6, area: 8500, image: 'https://images.unsplash.com/photo-1505843795480-5cfb3c03f6ff?w=600&auto=format&fit=crop',  owner: 'Robert Chen',       status: 'active',    views: 1247, flagCount: 0 },
@@ -147,12 +140,6 @@ const disputes: Dispute[] = [
   { id: 3, disputeType: 'listing',     initiatedBy: 'Emily Chen (Buyer)',     respondent: 'David Thompson (Owner)',   propertyTitle: 'Coastal Beach House',   submittedDate: '2026-05-07', status: 'resolved',      priority: 'low',    description: 'Buyer reported inaccurate square footage in listing. Resolved: listing updated.' },
 ];
 
-const notifications: Notification[] = [
-  { id: 1, type: 'verification', message: 'New verification request from Maria Garcia (Inspector)',             timestamp: '2026-05-10 08:30 AM', read: false },
-  { id: 2, type: 'dispute',      message: 'New dispute opened: Transaction dispute for Luxury Estate Mansion', timestamp: '2026-05-09 03:45 PM', read: false },
-  { id: 3, type: 'flag',         message: 'Listing flagged 3 times: Modern City Apartment',                    timestamp: '2026-05-09 11:20 AM', read: true },
-  { id: 4, type: 'report',       message: 'Inspection report flagged by owner: Modern City Apartment',         timestamp: '2026-05-08 02:15 PM', read: true },
-];
 
 const userGrowthData = [
   { month: 'Jan', buyers: 145, owners: 78,  agents: 23 },
@@ -251,6 +238,31 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const [notifications, setNotifications] = useState<ApiNotification[]>([]);
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      const data = await notificationService.getNotifications();
+      setNotifications(data);
+    } catch { /* silently ignore */ }
+  }, []);
+
+  useEffect(() => { loadNotifications(); }, [loadNotifications]);
+
+  const handleMarkAsRead = useCallback(async (notificationId: number) => {
+    try {
+      await notificationService.markAsRead(notificationId);
+      setNotifications(prev => prev.map(n => n.notificationId === notificationId ? { ...n, isRead: true } : n));
+    } catch { /* silently ignore */ }
+  }, []);
+
+  const handleMarkAllAsRead = useCallback(async () => {
+    try {
+      await notificationService.markAllAsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    } catch { /* silently ignore */ }
+  }, []);
+
   const formatPrice = (price: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(price);
 
@@ -343,7 +355,7 @@ export default function AdminDashboardPage() {
           { tab: 'disputes',      icon: <MessageSquare  size={20} />, label: 'Disputes',
             count: disputes.filter(d => d.status === 'open').length, countColor: 'bg-red-600' },
           { tab: 'notifications', icon: <Bell           size={20} />, label: 'Notifications',
-            count: notifications.filter(n => !n.read).length, countColor: 'bg-red-600' },
+            count: notifications.filter(n => !n.isRead).length, countColor: 'bg-red-600' },
         ].map(({ tab, icon, label, count, countColor }) => (
           <button
             key={tab}
@@ -929,24 +941,28 @@ export default function AdminDashboardPage() {
           {activeTab === 'notifications' && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-6">
-                <p className="text-gray-600">{notifications.filter(n => !n.read).length} unread notification{notifications.filter(n => !n.read).length !== 1 ? 's' : ''}</p>
-                <button className="text-blue-600 hover:text-blue-700 font-semibold text-sm transition-colors">Mark all as read</button>
+                <p className="text-gray-600">{notifications.filter(n => !n.isRead).length} unread notification{notifications.filter(n => !n.isRead).length !== 1 ? 's' : ''}</p>
+                <button onClick={handleMarkAllAsRead} className="text-blue-600 hover:text-blue-700 font-semibold text-sm transition-colors">Mark all as read</button>
               </div>
               <div className="space-y-3">
                 {notifications.map((n) => (
-                  <div key={n.id} className={`p-5 rounded-xl border-2 transition-all ${!n.read ? 'bg-blue-50 border-blue-200 hover:shadow-md' : 'bg-gray-50 border-gray-200 hover:shadow-sm'}`}>
+                  <div key={n.notificationId} onClick={() => handleMarkAsRead(n.notificationId)} className={`p-5 rounded-xl border-2 transition-all cursor-pointer ${!n.isRead ? 'bg-blue-50 border-blue-200 hover:shadow-md' : 'bg-gray-50 border-gray-200 hover:shadow-sm'}`}>
                     <div className="flex items-start gap-4">
-                      <div className={`p-2 rounded-lg ${n.type === 'verification' ? 'bg-blue-100' : n.type === 'dispute' ? 'bg-red-100' : n.type === 'flag' ? 'bg-orange-100' : 'bg-purple-100'}`}>
-                        {n.type === 'verification' && <UserCheck      className="text-blue-600"   size={20} />}
-                        {n.type === 'dispute'      && <MessageSquare  className="text-red-600"    size={20} />}
-                        {n.type === 'flag'         && <Flag           className="text-orange-600" size={20} />}
-                        {n.type === 'report'       && <ClipboardCheck className="text-purple-600" size={20} />}
+                      <div className={`p-2 rounded-lg ${n.type === 'AccountDecision' ? 'bg-blue-100' : n.type === 'DisputeUpdate' ? 'bg-red-100' : n.type === 'ListingStatus' ? 'bg-orange-100' : n.type === 'InspectionUpdate' ? 'bg-purple-100' : n.type === 'MessageReceived' ? 'bg-gray-100' : 'bg-blue-100'}`}>
+                        {n.type === 'AccountDecision'   && <UserCheck      className="text-blue-600"   size={20} />}
+                        {n.type === 'DisputeUpdate'     && <MessageSquare  className="text-red-600"    size={20} />}
+                        {n.type === 'ListingStatus'     && <Flag           className="text-orange-600" size={20} />}
+                        {n.type === 'InspectionUpdate'  && <ClipboardCheck className="text-purple-600" size={20} />}
+                        {n.type === 'MessageReceived'   && <Bell           className="text-gray-600"   size={20} />}
+                        {n.type === 'OfferResponse'     && <FileText       className="text-blue-600"   size={20} />}
+                        {n.type === 'TransactionClosed' && <CheckCircle    className="text-green-600"  size={20} />}
                       </div>
                       <div className="flex-1">
-                        <p className={`font-semibold ${!n.read ? 'text-gray-900' : 'text-gray-600'}`}>{n.message}</p>
-                        <div className="flex items-center gap-2 mt-2 text-sm text-gray-500"><Clock size={14} /><span>{n.timestamp}</span></div>
+                        <p className={`font-semibold ${!n.isRead ? 'text-gray-900' : 'text-gray-600'}`}>{n.title}</p>
+                        <p className="text-sm text-gray-500 mt-1">{n.body}</p>
+                        <div className="flex items-center gap-2 mt-2 text-sm text-gray-500"><Clock size={14} /><span>{formatNotificationDate(n.createdAt)}</span></div>
                       </div>
-                      {!n.read && <div className="w-3 h-3 bg-blue-600 rounded-full" />}
+                      {!n.isRead && <div className="w-3 h-3 bg-blue-600 rounded-full" />}
                     </div>
                   </div>
                 ))}

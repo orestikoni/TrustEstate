@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { notificationService, type ApiNotification, formatNotificationDate } from '@/services/notification.service';
 import Link from 'next/link';
 import {
   Home,
@@ -78,15 +79,6 @@ interface InspectionReport {
   locked: boolean;
 }
 
-interface Notification {
-  id: number;
-  type: 'assignment' | 'status_update' | 'report_due';
-  title: string;
-  message: string;
-  timestamp: string;
-  read: boolean;
-  inspectionId?: number;
-}
 
 const mockInspections: AssignedInspection[] = [
   {
@@ -140,11 +132,6 @@ const mockInspections: AssignedInspection[] = [
   },
 ];
 
-const mockNotifications: Notification[] = [
-  { id: 1, type: 'assignment',    title: 'New Inspection Assigned',    message: 'You have been assigned to inspect Modern Luxury Villa on March 18, 2024', timestamp: '2 hours ago', read: false, inspectionId: 1 },
-  { id: 2, type: 'status_update', title: 'Inspection Completed',       message: 'Beachfront Paradise inspection marked as completed. Please submit report.', timestamp: '1 day ago',   read: false, inspectionId: 3 },
-  { id: 3, type: 'report_due',    title: 'Report Submission Reminder', message: 'Report for Downtown Penthouse is due in 2 days',                           timestamp: '2 days ago',  read: true,  inspectionId: 2 },
-];
 
 const emptyCategory: CategoryFindings = { findings: '', rating: '', severity: '', photos: [] };
 
@@ -156,6 +143,23 @@ export default function InspectorDashboardPage() {
   const [selectedInspection, setSelectedInspection] = useState<AssignedInspection | null>(null);
   const [showReportForm, setShowReportForm] = useState(false);
   const [showVerdictForm, setShowVerdictForm] = useState(false);
+  const [notifications, setNotifications] = useState<ApiNotification[]>([]);
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      const data = await notificationService.getNotifications();
+      setNotifications(data);
+    } catch { /* silently ignore */ }
+  }, []);
+
+  useEffect(() => { loadNotifications(); }, [loadNotifications]);
+
+  const handleMarkAsRead = useCallback(async (notificationId: number) => {
+    try {
+      await notificationService.markAsRead(notificationId);
+      setNotifications(prev => prev.map(n => n.notificationId === notificationId ? { ...n, isRead: true } : n));
+    } catch { /* silently ignore */ }
+  }, []);
 
   const [report, setReport] = useState<InspectionReport>({
     inspectionId: 0,
@@ -259,7 +263,7 @@ export default function InspectorDashboardPage() {
             count: mockInspections.filter(i => i.status !== 'report_submitted').length },
           { tab: 'history',       icon: <FileText      size={20} />, label: 'Inspection History' },
           { tab: 'notifications', icon: <Bell          size={20} />, label: 'Notifications',
-            count: mockNotifications.filter(n => !n.read).length, countColor: 'bg-red-500' },
+            count: notifications.filter(n => !n.isRead).length, countColor: 'bg-red-500' },
         ].map(({ tab, icon, label, count, countColor }) => (
           <button
             key={tab}
@@ -413,20 +417,24 @@ export default function InspectorDashboardPage() {
                     <button onClick={() => setActiveTab('notifications')} className="text-sm text-blue-600 hover:text-blue-700 font-semibold">View All</button>
                   </div>
                   <div className="space-y-3 max-h-[600px] overflow-y-auto">
-                    {mockNotifications.slice(0, 5).map((n) => (
-                      <div key={n.id} className={`p-3 rounded-xl border cursor-pointer ${n.read ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
+                    {notifications.slice(0, 5).map((n) => (
+                      <div key={n.notificationId} onClick={() => handleMarkAsRead(n.notificationId)} className={`p-3 rounded-xl border cursor-pointer ${n.isRead ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
                         <div className="flex items-start gap-3">
-                          <div className={`p-2 rounded-lg ${n.type === 'assignment' ? 'bg-blue-100' : n.type === 'status_update' ? 'bg-green-100' : 'bg-orange-100'}`}>
-                            {n.type === 'assignment'    && <ClipboardCheck size={16} className="text-blue-600" />}
-                            {n.type === 'status_update' && <CheckCircle    size={16} className="text-green-600" />}
-                            {n.type === 'report_due'    && <AlertCircle    size={16} className="text-orange-600" />}
+                          <div className={`p-2 rounded-lg ${n.type === 'InspectionUpdate' ? 'bg-blue-100' : n.type === 'ListingStatus' ? 'bg-green-100' : n.type === 'AccountDecision' ? 'bg-green-100' : n.type === 'DisputeUpdate' ? 'bg-red-100' : n.type === 'MessageReceived' ? 'bg-gray-100' : 'bg-orange-100'}`}>
+                            {n.type === 'InspectionUpdate'  && <ClipboardCheck size={16} className="text-blue-600" />}
+                            {n.type === 'ListingStatus'     && <CheckCircle    size={16} className="text-green-600" />}
+                            {n.type === 'AccountDecision'   && <CheckCircle    size={16} className="text-green-600" />}
+                            {n.type === 'DisputeUpdate'     && <AlertCircle    size={16} className="text-red-600" />}
+                            {n.type === 'MessageReceived'   && <Bell           size={16} className="text-gray-600" />}
+                            {n.type === 'TransactionClosed' && <CheckCircle    size={16} className="text-blue-600" />}
+                            {n.type === 'OfferResponse'     && <FileText       size={16} className="text-orange-600" />}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold text-gray-900 mb-1">{n.title}</p>
-                            <p className="text-xs text-gray-600 mb-1 line-clamp-2">{n.message}</p>
-                            <p className="text-xs text-gray-500">{n.timestamp}</p>
+                            <p className="text-xs text-gray-600 mb-1 line-clamp-2">{n.body}</p>
+                            <p className="text-xs text-gray-500">{formatNotificationDate(n.createdAt)}</p>
                           </div>
-                          {!n.read && <div className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-1" />}
+                          {!n.isRead && <div className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-1" />}
                         </div>
                       </div>
                     ))}
@@ -693,23 +701,27 @@ export default function InspectorDashboardPage() {
             <div className="max-w-4xl mx-auto">
               <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
                 <p className="text-gray-700 font-semibold mb-6">
-                  You have {mockNotifications.filter(n => !n.read).length} unread notifications
+                  You have {notifications.filter(n => !n.isRead).length} unread notifications
                 </p>
                 <div className="space-y-3">
-                  {mockNotifications.map((n) => (
-                    <div key={n.id} className={`p-5 rounded-xl border transition-all ${n.read ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
+                  {notifications.map((n) => (
+                    <div key={n.notificationId} onClick={() => handleMarkAsRead(n.notificationId)} className={`p-5 rounded-xl border transition-all cursor-pointer ${n.isRead ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
                       <div className="flex items-start gap-4">
-                        <div className={`p-3 rounded-lg ${n.type === 'assignment' ? 'bg-blue-100' : n.type === 'status_update' ? 'bg-green-100' : 'bg-orange-100'}`}>
-                          {n.type === 'assignment'    && <ClipboardCheck size={16} className="text-blue-600" />}
-                          {n.type === 'status_update' && <CheckCircle    size={16} className="text-green-600" />}
-                          {n.type === 'report_due'    && <AlertCircle    size={16} className="text-orange-600" />}
+                        <div className={`p-3 rounded-lg ${n.type === 'InspectionUpdate' ? 'bg-blue-100' : n.type === 'ListingStatus' ? 'bg-green-100' : n.type === 'AccountDecision' ? 'bg-green-100' : n.type === 'DisputeUpdate' ? 'bg-red-100' : n.type === 'MessageReceived' ? 'bg-gray-100' : 'bg-orange-100'}`}>
+                          {n.type === 'InspectionUpdate'  && <ClipboardCheck size={16} className="text-blue-600" />}
+                          {n.type === 'ListingStatus'     && <CheckCircle    size={16} className="text-green-600" />}
+                          {n.type === 'AccountDecision'   && <CheckCircle    size={16} className="text-green-600" />}
+                          {n.type === 'DisputeUpdate'     && <AlertCircle    size={16} className="text-red-600" />}
+                          {n.type === 'MessageReceived'   && <Bell           size={16} className="text-gray-600" />}
+                          {n.type === 'TransactionClosed' && <CheckCircle    size={16} className="text-blue-600" />}
+                          {n.type === 'OfferResponse'     && <FileText       size={16} className="text-orange-600" />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-lg font-bold text-gray-900 mb-2">{n.title}</p>
-                          <p className="text-sm text-gray-600 mb-2">{n.message}</p>
-                          <p className="text-xs text-gray-500">{n.timestamp}</p>
+                          <p className="text-sm text-gray-600 mb-2">{n.body}</p>
+                          <p className="text-xs text-gray-500">{formatNotificationDate(n.createdAt)}</p>
                         </div>
-                        {!n.read && <div className="w-3 h-3 bg-blue-600 rounded-full flex-shrink-0 mt-1" />}
+                        {!n.isRead && <div className="w-3 h-3 bg-blue-600 rounded-full flex-shrink-0 mt-1" />}
                       </div>
                     </div>
                   ))}

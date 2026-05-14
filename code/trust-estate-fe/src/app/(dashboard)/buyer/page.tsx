@@ -1,6 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { notificationService, type ApiNotification, formatNotificationDate } from '@/services/notification.service';
+import { authService } from '@/services/auth.service';
+import { tokenStorage } from '@/lib/api-client';
+import type { User } from '@/types';
 import Link from 'next/link';
 import {
   Home,
@@ -72,15 +77,6 @@ interface NegotiationRound {
   date: string;
 }
 
-interface Notification {
-  id: number;
-  type: 'offer_update' | 'new_listing' | 'price_drop' | 'inspection' | 'message';
-  title: string;
-  message: string;
-  timestamp: string;
-  read: boolean;
-  propertyId?: number;
-}
 
 interface Message {
   id: number;
@@ -202,13 +198,6 @@ const offers: Offer[] = [
   },
 ];
 
-const notifications: Notification[] = [
-  { id: 1, type: 'offer_update', title: 'Offer Accepted!',          message: 'Your offer on Modern Architecture Home has been accepted at $1,400,000', timestamp: '2 hours ago',  read: false, propertyId: 1 },
-  { id: 2, type: 'offer_update', title: 'Counter Offer Received',   message: 'Agent countered your offer on Downtown Penthouse at $920,000',           timestamp: '5 hours ago',  read: false, propertyId: 5 },
-  { id: 3, type: 'inspection',   title: 'Inspection Report Available', message: 'Inspection report for Modern Architecture Home is now ready for review', timestamp: '1 day ago',   read: true,  propertyId: 1 },
-  { id: 4, type: 'new_listing',  title: 'New Listing Match',         message: 'New property matching your criteria in San Diego, CA',                   timestamp: '1 day ago',   read: true },
-  { id: 5, type: 'price_drop',   title: 'Price Drop Alert',          message: 'Beachfront Paradise reduced by $150,000',                               timestamp: '2 days ago',  read: true,  propertyId: 4 },
-];
 
 const mockMessages: Message[] = [
   { id: 1, propertyId: 1, sender: 'agent', senderName: 'Sarah Johnson', content: "Congratulations on your accepted offer! I'll be in touch shortly with next steps for the closing process.", timestamp: '2024-03-11 10:30 AM' },
@@ -216,6 +205,7 @@ const mockMessages: Message[] = [
 ];
 
 export default function BuyerDashboardPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<
     'dashboard' | 'favorites' | 'offers' | 'messages' | 'notifications' | 'inspection'
   >('dashboard');
@@ -224,6 +214,34 @@ export default function BuyerDashboardPage() {
   const [messageText, setMessageText] = useState('');
   const [reviseAmount, setReviseAmount] = useState('');
   const [reviseMessage, setReviseMessage] = useState('');
+  const [notifications, setNotifications] = useState<ApiNotification[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    authService.me().then(setCurrentUser).catch(() => {});
+  }, []);
+
+  const handleSignOut = useCallback(async () => {
+    try { await authService.logout(); } catch { /* ignore */ }
+    tokenStorage.clear();
+    router.push('/login');
+  }, [router]);
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      const data = await notificationService.getNotifications();
+      setNotifications(data);
+    } catch { /* silently ignore */ }
+  }, []);
+
+  useEffect(() => { loadNotifications(); }, [loadNotifications]);
+
+  const handleMarkAsRead = useCallback(async (notificationId: number) => {
+    try {
+      await notificationService.markAsRead(notificationId);
+      setNotifications(prev => prev.map(n => n.notificationId === notificationId ? { ...n, isRead: true } : n));
+    } catch { /* silently ignore */ }
+  }, []);
 
   const formatPrice = (price: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(price);
@@ -238,13 +256,28 @@ export default function BuyerDashboardPage() {
     }
   };
 
-  const getNotificationIcon = (type: Notification['type']) => {
+  const getNotificationIcon = (type: string) => {
     switch (type) {
-      case 'offer_update': return <FileText    className="text-blue-600"   size={16} />;
-      case 'new_listing':  return <Home        className="text-green-600"  size={16} />;
-      case 'price_drop':   return <TrendingUp  className="text-orange-600" size={16} />;
-      case 'inspection':   return <ClipboardCheck className="text-purple-600" size={16} />;
-      case 'message':      return <MessageSquare  className="text-blue-600"   size={16} />;
+      case 'OfferResponse':    return <DollarSign    className="text-blue-600"   size={16} />;
+      case 'ListingStatus':    return <Home          className="text-green-600"  size={16} />;
+      case 'InspectionUpdate': return <ClipboardCheck className="text-purple-600" size={16} />;
+      case 'MessageReceived':  return <MessageSquare  className="text-gray-600"   size={16} />;
+      case 'AccountDecision':  return <CheckCircle   className="text-green-600"  size={16} />;
+      case 'DisputeUpdate':    return <AlertCircle   className="text-red-600"    size={16} />;
+      case 'TransactionClosed':return <TrendingUp    className="text-blue-600"   size={16} />;
+      default:                 return <Bell          className="text-gray-600"   size={16} />;
+    }
+  };
+
+  const getNotificationBg = (type: string) => {
+    switch (type) {
+      case 'OfferResponse':    return 'bg-blue-100';
+      case 'ListingStatus':    return 'bg-green-100';
+      case 'InspectionUpdate': return 'bg-purple-100';
+      case 'AccountDecision':  return 'bg-green-100';
+      case 'DisputeUpdate':    return 'bg-red-100';
+      case 'TransactionClosed':return 'bg-blue-100';
+      default:                 return 'bg-gray-100';
     }
   };
 
@@ -288,11 +321,15 @@ export default function BuyerDashboardPage() {
       <div className="p-6 border-b border-blue-500/30">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-blue-600 text-lg font-bold shadow-lg">
-            JD
+            {currentUser
+              ? `${currentUser.firstName.charAt(0)}${currentUser.lastName.charAt(0)}`
+              : '…'}
           </div>
           <div>
-            <p className="font-bold text-white">John Doe</p>
-            <p className="text-sm text-blue-200">john.doe@email.com</p>
+            <p className="font-bold text-white">
+              {currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : ''}
+            </p>
+            <p className="text-sm text-blue-200">{currentUser?.emailAddress ?? ''}</p>
           </div>
         </div>
       </div>
@@ -305,7 +342,7 @@ export default function BuyerDashboardPage() {
           { tab: 'offers',        icon: <FileText size={20} />,      label: 'My Offers',        count: offers.length },
           { tab: 'messages',      icon: <MessageSquare size={20} />, label: 'Messages' },
           { tab: 'notifications', icon: <Bell size={20} />,          label: 'Notifications',
-            count: notifications.filter((n) => !n.read).length,
+            count: notifications.filter((n) => !n.isRead).length,
             countColor: 'bg-red-500' },
         ].map(({ tab, icon, label, count, countColor }) => (
           <button
@@ -332,7 +369,7 @@ export default function BuyerDashboardPage() {
           <Settings size={20} />
           Settings
         </button>
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-red-300 hover:bg-red-500/10 transition-all">
+        <button onClick={handleSignOut} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-red-300 hover:bg-red-500/10 transition-all">
           <LogOut size={20} />
           Sign Out
         </button>
@@ -411,7 +448,7 @@ export default function BuyerDashboardPage() {
                   { label: 'Saved Properties', value: savedProperties.length,                                              sub: '+2 this week',    subColor: 'text-green-600', icon: <Heart className="text-red-500" size={24} /> },
                   { label: 'Active Offers',    value: offers.filter((o) => o.status === 'pending' || o.status === 'countered').length, sub: `Out of ${offers.length} total`, subColor: 'text-gray-600', icon: <FileText className="text-blue-500" size={24} /> },
                   { label: 'Accepted Offers',  value: offers.filter((o) => o.status === 'accepted').length,                sub: 'Ready to proceed', subColor: 'text-gray-600', icon: <CheckCircle className="text-green-500" size={24} /> },
-                  { label: 'Notifications',    value: notifications.filter((n) => !n.read).length,                        sub: 'Unread',           subColor: 'text-gray-600', icon: <Bell className="text-orange-500" size={24} /> },
+                  { label: 'Notifications',    value: notifications.filter((n) => !n.isRead).length,                        sub: 'Unread',           subColor: 'text-gray-600', icon: <Bell className="text-orange-500" size={24} /> },
                 ].map((stat) => (
                   <div key={stat.label} className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all">
                     <div className="flex items-center justify-between mb-2">
@@ -520,22 +557,17 @@ export default function BuyerDashboardPage() {
                   </div>
                   <div className="space-y-3 max-h-[600px] overflow-y-auto">
                     {notifications.slice(0, 5).map((notification) => (
-                      <div key={notification.id} className={`p-3 rounded-xl border transition-all cursor-pointer ${notification.read ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
+                      <div key={notification.notificationId} onClick={() => handleMarkAsRead(notification.notificationId)} className={`p-3 rounded-xl border transition-all cursor-pointer ${notification.isRead ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
                         <div className="flex items-start gap-3">
-                          <div className={`p-2 rounded-lg ${
-                            notification.type === 'offer_update' ? 'bg-blue-100' :
-                            notification.type === 'new_listing'  ? 'bg-green-100' :
-                            notification.type === 'price_drop'   ? 'bg-orange-100' :
-                            notification.type === 'inspection'   ? 'bg-purple-100' : 'bg-gray-100'
-                          }`}>
+                          <div className={`p-2 rounded-lg ${getNotificationBg(notification.type)}`}>
                             {getNotificationIcon(notification.type)}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold text-gray-900 mb-1">{notification.title}</p>
-                            <p className="text-xs text-gray-600 mb-1 line-clamp-2">{notification.message}</p>
-                            <p className="text-xs text-gray-500">{notification.timestamp}</p>
+                            <p className="text-xs text-gray-600 mb-1 line-clamp-2">{notification.body}</p>
+                            <p className="text-xs text-gray-500">{formatNotificationDate(notification.createdAt)}</p>
                           </div>
-                          {!notification.read && <div className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-1" />}
+                          {!notification.isRead && <div className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-1" />}
                         </div>
                       </div>
                     ))}
@@ -867,7 +899,9 @@ export default function BuyerDashboardPage() {
                           <p className={`text-xs text-gray-500 mt-1 ${message.sender === 'buyer' ? 'text-right mr-1' : 'ml-1'}`}>{message.timestamp}</p>
                         </div>
                         {message.sender === 'buyer' && (
-                          <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-gray-700 text-sm font-bold flex-shrink-0">JD</div>
+                          <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-gray-700 text-sm font-bold flex-shrink-0">
+                            {currentUser ? `${currentUser.firstName.charAt(0)}${currentUser.lastName.charAt(0)}` : '…'}
+                          </div>
                         )}
                       </div>
                     ))
@@ -902,26 +936,21 @@ export default function BuyerDashboardPage() {
             <div className="max-w-4xl mx-auto">
               <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
                 <p className="text-gray-700 font-semibold mb-6">
-                  You have {notifications.filter((n) => !n.read).length} unread notifications
+                  You have {notifications.filter((n) => !n.isRead).length} unread notifications
                 </p>
                 <div className="space-y-3">
                   {notifications.map((notification) => (
-                    <div key={notification.id} className={`p-5 rounded-xl border transition-all ${notification.read ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
+                    <div key={notification.notificationId} onClick={() => handleMarkAsRead(notification.notificationId)} className={`p-5 rounded-xl border transition-all cursor-pointer ${notification.isRead ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
                       <div className="flex items-start gap-4">
-                        <div className={`p-3 rounded-lg ${
-                          notification.type === 'offer_update' ? 'bg-blue-100' :
-                          notification.type === 'new_listing'  ? 'bg-green-100' :
-                          notification.type === 'price_drop'   ? 'bg-orange-100' :
-                          notification.type === 'inspection'   ? 'bg-purple-100' : 'bg-gray-100'
-                        }`}>
+                        <div className={`p-3 rounded-lg ${getNotificationBg(notification.type)}`}>
                           {getNotificationIcon(notification.type)}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-lg font-bold text-gray-900 mb-2">{notification.title}</p>
-                          <p className="text-sm text-gray-600 mb-2">{notification.message}</p>
-                          <p className="text-xs text-gray-500">{notification.timestamp}</p>
+                          <p className="text-sm text-gray-600 mb-2">{notification.body}</p>
+                          <p className="text-xs text-gray-500">{formatNotificationDate(notification.createdAt)}</p>
                         </div>
-                        {!notification.read && <div className="w-3 h-3 bg-blue-600 rounded-full flex-shrink-0 mt-1" />}
+                        {!notification.isRead && <div className="w-3 h-3 bg-blue-600 rounded-full flex-shrink-0 mt-1" />}
                       </div>
                     </div>
                   ))}

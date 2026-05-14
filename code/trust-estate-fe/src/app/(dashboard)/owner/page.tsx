@@ -39,6 +39,7 @@ import {
   type PropertyType,
 } from '@/services/listing.service';
 import { ApiRequestError } from '@/lib/api-client';
+import { notificationService, type ApiNotification, formatNotificationDate } from '@/services/notification.service';
 
 // ─────────────────────────── display types ───────────────────────────
 
@@ -84,15 +85,6 @@ interface NegotiationRound {
   date: string;
 }
 
-interface Notification {
-  id: number;
-  type: 'offer' | 'correction' | 'approval' | 'inspection' | 'message';
-  title: string;
-  message: string;
-  timestamp: string;
-  read: boolean;
-  listingId?: number;
-}
 
 interface ListingForm {
   title: string;
@@ -147,13 +139,6 @@ const mockOffers: Offer[] = [
   },
 ];
 
-const mockNotifications: Notification[] = [
-  { id: 1, type: 'offer',      title: 'New Offer Received',         message: 'You received a new offer on one of your listings.',        timestamp: '2 hours ago',   read: false },
-  { id: 2, type: 'correction', title: 'Corrections Requested',      message: 'Your agent has requested corrections on a listing.',        timestamp: '1 day ago',     read: false },
-  { id: 3, type: 'approval',   title: 'Listing Approved',           message: 'Your listing has been approved and is now live.',           timestamp: '3 days ago',    read: true  },
-  { id: 4, type: 'inspection', title: 'Inspection Report Ready',    message: 'The inspection report for your property is now available.', timestamp: '5 days ago',    read: true  },
-  { id: 5, type: 'message',    title: 'Message from Agent',         message: 'Your agent sent you a message regarding your listing.',     timestamp: '1 week ago',    read: true  },
-];
 
 // ─────────────────────────── mapper ───────────────────────────
 
@@ -199,7 +184,7 @@ export default function OwnerDashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [messageText, setMessageText] = useState('');
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const [notifications, setNotifications] = useState<ApiNotification[]>([]);
 
   // ── api state
   const [apiListings, setApiListings] = useState<ApiListing[]>([]);
@@ -239,6 +224,22 @@ export default function OwnerDashboardPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      const data = await notificationService.getNotifications();
+      setNotifications(data);
+    } catch { /* silently ignore */ }
+  }, []);
+
+  useEffect(() => { loadNotifications(); }, [loadNotifications]);
+
+  const handleMarkAsRead = useCallback(async (notificationId: number) => {
+    try {
+      await notificationService.markAsRead(notificationId);
+      setNotifications(prev => prev.map(n => n.notificationId === notificationId ? { ...n, isRead: true } : n));
+    } catch { /* silently ignore */ }
+  }, []);
 
   // ── helpers
   const formatPrice = (price: number) =>
@@ -510,7 +511,7 @@ export default function OwnerDashboardPage() {
               </div>
               <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <Bell size={22} className="text-gray-700" />
-                {notifications.filter((n) => !n.read).length > 0 && (
+                {notifications.filter((n) => !n.isRead).length > 0 && (
                   <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
                 )}
               </button>
@@ -629,30 +630,34 @@ export default function OwnerDashboardPage() {
                   <div className="space-y-3 max-h-[600px] overflow-y-auto">
                     {notifications.map((notification) => (
                       <div
-                        key={notification.id}
-                        onClick={() => setNotifications(notifications.map((n) => n.id === notification.id ? { ...n, read: true } : n))}
-                        className={`p-4 rounded-xl border transition-all cursor-pointer ${notification.read ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}
+                        key={notification.notificationId}
+                        onClick={() => handleMarkAsRead(notification.notificationId)}
+                        className={`p-4 rounded-xl border transition-all cursor-pointer ${notification.isRead ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}
                       >
                         <div className="flex items-start gap-3">
                           <div className={`p-2 rounded-lg ${
-                            notification.type === 'offer'      ? 'bg-blue-100 text-blue-600' :
-                            notification.type === 'correction' ? 'bg-orange-100 text-orange-600' :
-                            notification.type === 'approval'   ? 'bg-green-100 text-green-600' :
-                            notification.type === 'inspection' ? 'bg-purple-100 text-purple-600' :
-                                                                 'bg-gray-100 text-gray-600'
+                            notification.type === 'OfferResponse'     ? 'bg-blue-100 text-blue-600' :
+                            notification.type === 'DisputeUpdate'     ? 'bg-red-100 text-red-600' :
+                            notification.type === 'AccountDecision'   ? 'bg-green-100 text-green-600' :
+                            notification.type === 'ListingStatus'     ? 'bg-green-100 text-green-600' :
+                            notification.type === 'InspectionUpdate'  ? 'bg-purple-100 text-purple-600' :
+                            notification.type === 'MessageReceived'   ? 'bg-gray-100 text-gray-600' :
+                                                                        'bg-blue-100 text-blue-600'
                           }`}>
-                            {notification.type === 'offer'      && <DollarSign size={16} />}
-                            {notification.type === 'correction' && <AlertCircle size={16} />}
-                            {notification.type === 'approval'   && <CheckCircle size={16} />}
-                            {notification.type === 'inspection' && <ClipboardCheck size={16} />}
-                            {notification.type === 'message'    && <MessageSquare size={16} />}
+                            {notification.type === 'OfferResponse'    && <DollarSign size={16} />}
+                            {notification.type === 'DisputeUpdate'    && <AlertCircle size={16} />}
+                            {notification.type === 'AccountDecision'  && <CheckCircle size={16} />}
+                            {notification.type === 'ListingStatus'    && <CheckCircle size={16} />}
+                            {notification.type === 'InspectionUpdate' && <ClipboardCheck size={16} />}
+                            {notification.type === 'MessageReceived'  && <MessageSquare size={16} />}
+                            {notification.type === 'TransactionClosed' && <CheckCircle size={16} />}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold text-gray-900 mb-1">{notification.title}</p>
-                            <p className="text-xs text-gray-600 mb-2">{notification.message}</p>
-                            <p className="text-xs text-gray-500">{notification.timestamp}</p>
+                            <p className="text-xs text-gray-600 mb-2">{notification.body}</p>
+                            <p className="text-xs text-gray-500">{formatNotificationDate(notification.createdAt)}</p>
                           </div>
-                          {!notification.read && <div className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-1" />}
+                          {!notification.isRead && <div className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-1" />}
                         </div>
                       </div>
                     ))}
