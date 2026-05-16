@@ -8,6 +8,9 @@ public class InspectionReport
     public int InspectionId { get; set; }
     public InspectionVerdict? FinalVerdict { get; set; }
     public bool IsLocked { get; set; } = false;
+    public bool IsFlagged { get; set; } = false;
+    public string? FlagReason { get; set; }
+    public DateTime? FlaggedAt { get; set; }
     public DateTime? SubmittedAt { get; set; }
     public DateTime? VerdictSubmittedAt { get; set; }
 
