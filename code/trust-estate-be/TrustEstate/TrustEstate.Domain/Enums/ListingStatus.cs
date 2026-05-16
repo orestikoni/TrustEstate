@@ -6,6 +6,7 @@ public enum ListingStatus
     CorrectionsRequested,
     Active,
     UnderOffer,
+    Flagged,
     Suspended,
     Archived,
     Removed
