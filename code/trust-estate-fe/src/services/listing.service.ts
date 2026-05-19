@@ -73,10 +73,57 @@ export interface UpdateListingPayload {
   photoUrls: string[];
 }
 
+export interface PagedResult<T> {
+  items: T[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface ListingFilterParams {
+  city?: string;
+  country?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  propertyType?: string;
+  listingType?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+function buildQuery(params: ListingFilterParams): string {
+  const q = new URLSearchParams();
+  if (params.city)         q.set('city', params.city);
+  if (params.country)      q.set('country', params.country);
+  if (params.minPrice)     q.set('minPrice', String(params.minPrice));
+  if (params.maxPrice)     q.set('maxPrice', String(params.maxPrice));
+  if (params.propertyType) q.set('propertyType', params.propertyType);
+  if (params.listingType)  q.set('listingType', params.listingType);
+  if (params.page)         q.set('page', String(params.page));
+  if (params.pageSize)     q.set('pageSize', String(params.pageSize));
+  const str = q.toString();
+  return str ? `?${str}` : '';
+}
+
 export const listingService = {
+  // Owner
   getMyListings: () => apiClient.get<ApiListing[]>('/listings/my'),
   getAgents: () => apiClient.get<AvailableAgent[]>('/listings/agents'),
   createListing: (data: CreateListingPayload) => apiClient.post<ApiListing>('/listings', data),
   updateListing: (id: number, data: UpdateListingPayload) => apiClient.put<ApiListing>(`/listings/${id}`, data),
   deleteListing: (id: number) => apiClient.delete<void>(`/listings/${id}`),
+
+  // Public
+  getActiveListings: (params: ListingFilterParams = {}) =>
+    apiClient.get<PagedResult<ApiListing>>(`/listings${buildQuery(params)}`),
+  getListing: (id: number) => apiClient.get<ApiListing>(`/listings/${id}`),
+
+  // Agent
+  getAssignedListings: () => apiClient.get<ApiListing[]>('/listings/assigned'),
+
+  // Buyer
+  getFavorites: () => apiClient.get<ApiListing[]>('/listings/favorites'),
+  saveFavorite: (id: number) => apiClient.post<void>(`/listings/${id}/favorites`, {}),
+  removeFavorite: (id: number) => apiClient.delete<void>(`/listings/${id}/favorites`),
 };

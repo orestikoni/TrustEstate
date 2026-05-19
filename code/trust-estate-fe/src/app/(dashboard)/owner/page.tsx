@@ -38,7 +38,9 @@ import {
   type ListingType,
   type PropertyType,
 } from '@/services/listing.service';
+import { offerService } from '@/services/offer.service';
 import { ApiRequestError } from '@/lib/api-client';
+import type { OfferDto } from '@/types';
 import { notificationService, type ApiNotification, formatNotificationDate } from '@/services/notification.service';
 
 // ─────────────────────────── display types ───────────────────────────
@@ -124,20 +126,7 @@ const STATUS_MAP: Record<ApiListingStatus, ListingStatus> = {
 
 // ─────────────────────────── mock data (offers / notifications) ───────────────────────────
 
-const mockOffers: Offer[] = [
-  {
-    id: 1,
-    listingId: -1,
-    buyerName: 'John Smith',
-    proposedPrice: 1200000,
-    status: 'pending',
-    message: 'Very interested in this property. Would like to schedule a viewing.',
-    submittedDate: '2024-03-12',
-    rounds: [
-      { id: 1, actor: 'buyer', action: 'offer', amount: 1200000, message: 'Initial offer, ready to close within 30 days', date: '2024-03-12 10:30 AM' },
-    ],
-  },
-];
+// Offers are loaded dynamically from the API — see listingOffers state
 
 
 // ─────────────────────────── mapper ───────────────────────────
@@ -192,6 +181,10 @@ export default function OwnerDashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // ── offers state
+  const [listingOffers, setListingOffers] = useState<OfferDto[]>([]);
+  const [offersLoading, setOffersLoading] = useState(false);
+
   // ── form state
   const [editingListingId, setEditingListingId] = useState<number | null>(null);
   const [form, setForm] = useState<ListingForm>(initialForm);
@@ -233,6 +226,16 @@ export default function OwnerDashboardPage() {
   }, []);
 
   useEffect(() => { loadNotifications(); }, [loadNotifications]);
+
+  // Load offers when navigating to offers tab for a selected listing
+  useEffect(() => {
+    if (activeTab !== 'offers' || !selectedListing) return;
+    setOffersLoading(true);
+    offerService.getOffersByListingOwner(selectedListing.id)
+      .then(setListingOffers)
+      .catch(() => setListingOffers([]))
+      .finally(() => setOffersLoading(false));
+  }, [activeTab, selectedListing]);
 
   const handleMarkAsRead = useCallback(async (notificationId: number) => {
     try {
@@ -1025,55 +1028,67 @@ export default function OwnerDashboardPage() {
                 </div>
 
                 <div className="space-y-6">
-                  {mockOffers.filter((o) => o.listingId === selectedListing.id).map((offer) => (
-                    <div key={offer.id} className="p-6 bg-gray-50 rounded-xl border border-gray-200">
+                  {offersLoading && (
+                    <div className="flex justify-center py-12">
+                      <Loader2 className="animate-spin text-blue-600" size={36} />
+                    </div>
+                  )}
+
+                  {!offersLoading && listingOffers.map((offer) => (
+                    <div key={offer.offerId} className="p-6 bg-gray-50 rounded-xl border border-gray-200">
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-3">
                           <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-lg font-bold">
-                            {offer.buyerName.charAt(0)}
+                            {offer.buyerFullName.charAt(0)}
                           </div>
                           <div>
-                            <h3 className="text-lg font-bold text-gray-900">{offer.buyerName}</h3>
-                            <p className="text-sm text-gray-600">{offer.submittedDate}</p>
+                            <h3 className="text-lg font-bold text-gray-900">{offer.buyerFullName}</h3>
+                            <p className="text-sm text-gray-600">{offer.submittedAt.split('T')[0]}</p>
                           </div>
                         </div>
                         <div className="text-right">
                           <p className="text-sm text-gray-600 mb-1">Current Offer</p>
                           <p className="text-2xl font-bold text-blue-600">{formatPrice(offer.proposedPrice)}</p>
-                          <span className={`inline-block px-3 py-1 text-xs font-bold rounded-full border mt-2 ${getOfferStatusColor(offer.status)}`}>
+                          <span className={`inline-block px-3 py-1 text-xs font-bold rounded-full border mt-2 ${getOfferStatusColor(offer.status.toLowerCase() as OfferStatus)}`}>
                             {offer.status.toUpperCase()}
                           </span>
+                          <p className="text-xs text-gray-500 mt-1">Round {offer.negotiationRound}</p>
                         </div>
                       </div>
 
-                      <div className="mb-4 p-4 bg-white rounded-lg border border-gray-200">
-                        <p className="text-sm font-semibold text-gray-700 mb-1">Buyer Message:</p>
-                        <p className="text-sm text-gray-600 italic">"{offer.message}"</p>
-                      </div>
+                      {offer.message && (
+                        <div className="mb-4 p-4 bg-white rounded-lg border border-gray-200">
+                          <p className="text-sm font-semibold text-gray-700 mb-1">Buyer Message:</p>
+                          <p className="text-sm text-gray-600 italic">"{offer.message}"</p>
+                        </div>
+                      )}
 
-                      <p className="text-sm font-bold text-gray-900 mb-3">Negotiation History</p>
-                      <div className="space-y-3">
-                        {offer.rounds.map((round) => (
-                          <div key={round.id} className="flex gap-3">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                              round.actor === 'buyer' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'
-                            }`}>
-                              {round.actor === 'buyer' ? <Users size={18} /> : <CheckCircle size={18} />}
-                            </div>
-                            <div className="flex-1 p-3 bg-white rounded-lg border border-gray-200">
-                              <div className="flex items-center justify-between mb-2">
-                                <p className="text-sm font-bold text-gray-900">
-                                  {round.actor === 'buyer' ? 'Buyer' : 'Agent'}{' '}
-                                  {round.action === 'offer' ? 'Offer' : round.action === 'counter' ? 'Counter' : round.action}
-                                </p>
-                                <p className="text-sm font-bold text-blue-600">{formatPrice(round.amount)}</p>
+                      {offer.negotiations.length > 0 && (
+                        <>
+                          <p className="text-sm font-bold text-gray-900 mb-3">Negotiation History</p>
+                          <div className="space-y-3">
+                            {offer.negotiations.map((neg) => (
+                              <div key={neg.negotiationId} className="flex gap-3">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                  neg.actorRole === 'Buyer' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'
+                                }`}>
+                                  {neg.actorRole === 'Buyer' ? <Users size={18} /> : <CheckCircle size={18} />}
+                                </div>
+                                <div className="flex-1 p-3 bg-white rounded-lg border border-gray-200">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <p className="text-sm font-bold text-gray-900">
+                                      {neg.actorRole === 'Buyer' ? 'Buyer' : 'Agent'} — {neg.action}
+                                    </p>
+                                    <p className="text-sm font-bold text-blue-600">{formatPrice(neg.proposedPrice)}</p>
+                                  </div>
+                                  {neg.message && <p className="text-xs text-gray-600 mb-1">"{neg.message}"</p>}
+                                  <p className="text-xs text-gray-500">{new Date(neg.createdAt).toLocaleString()}</p>
+                                </div>
                               </div>
-                              <p className="text-xs text-gray-600 mb-1">{round.message}</p>
-                              <p className="text-xs text-gray-500">{round.date}</p>
-                            </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        </>
+                      )}
 
                       <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                         <p className="text-sm text-blue-900">
@@ -1083,7 +1098,7 @@ export default function OwnerDashboardPage() {
                     </div>
                   ))}
 
-                  {mockOffers.filter((o) => o.listingId === selectedListing.id).length === 0 && (
+                  {!offersLoading && listingOffers.length === 0 && (
                     <div className="text-center py-12">
                       <FileText className="mx-auto text-gray-400 mb-4" size={48} />
                       <p className="text-gray-600 font-semibold">No offers yet</p>

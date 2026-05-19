@@ -33,7 +33,12 @@ import {
   Check,
   X as XIcon,
   UserCheck,
+  Loader2,
 } from 'lucide-react';
+import { offerService } from '@/services/offer.service';
+import { listingService, type ApiListing } from '@/services/listing.service';
+import { ApiRequestError } from '@/lib/api-client';
+import type { OfferDto } from '@/types';
 
 type ListingStatus = 'pending_assignment' | 'pending_review' | 'corrections_requested' | 'active' | 'under_offer' | 'closed';
 type OfferStatus = 'pending' | 'countered' | 'accepted' | 'declined';
@@ -169,29 +174,7 @@ const mockAssignments: ListingAssignment[] = [
   },
 ];
 
-const mockOffers: Offer[] = [
-  {
-    id: 1, listingId: 104, listingTitle: 'Beachfront Paradise',
-    listingImage: 'https://images.unsplash.com/photo-1771190252113-aa988822596f?w=600&auto=format&fit=crop',
-    buyerName: 'John Smith', buyerId: 10, proposedPrice: 2050000, status: 'pending',
-    message: 'Very interested in this property. Ready to close within 30 days.',
-    submittedDate: '2024-03-14', maxRounds: 3, currentRound: 1,
-    rounds: [
-      { id: 1, actor: 'buyer', action: 'offer', amount: 2050000, message: 'Initial offer - pre-approved, ready to close quickly', date: '2024-03-14 10:30 AM' },
-    ],
-  },
-  {
-    id: 2, listingId: 104, listingTitle: 'Beachfront Paradise',
-    listingImage: 'https://images.unsplash.com/photo-1771190252113-aa988822596f?w=600&auto=format&fit=crop',
-    buyerName: 'Emily Rodriguez', buyerId: 11, proposedPrice: 2000000, status: 'countered',
-    message: 'Cash buyer, flexible closing date.',
-    submittedDate: '2024-03-12', maxRounds: 3, currentRound: 2,
-    rounds: [
-      { id: 1, actor: 'buyer', action: 'offer',   amount: 1950000, message: 'Initial offer - cash buyer',                               date: '2024-03-12 09:00 AM' },
-      { id: 2, actor: 'agent', action: 'counter', amount: 2000000, message: 'Property recently appraised at $2.1M. Counter at $2M.', date: '2024-03-12 02:30 PM' },
-    ],
-  },
-];
+// Offers are loaded dynamically from API — no mock data
 
 const mockInspectors: PropertyInspector[] = [
   { id: 1, name: 'John Smith',      licenseNumber: 'INS-12345-CA', verified: true, rating: 4.9, completedInspections: 487, specialties: ['Residential', 'Luxury Properties', 'Foundation'], available: true,  nextAvailableDate: '2024-03-18' },
@@ -226,9 +209,16 @@ export default function AgentDashboardPage() {
   const [correctionNote, setCorrectionNote] = useState('');
   const [counterAmount, setCounterAmount] = useState('');
   const [counterMessage, setCounterMessage] = useState('');
+  const [counterDeadline, setCounterDeadline] = useState('');
   const [showInspectorModal, setShowInspectorModal] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [notifications, setNotifications] = useState<ApiNotification[]>([]);
+
+  // Real offers state
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [offersLoading, setOffersLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [assignedListings, setAssignedListings] = useState<ApiListing[]>([]);
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -238,6 +228,59 @@ export default function AgentDashboardPage() {
   }, []);
 
   useEffect(() => { loadNotifications(); }, [loadNotifications]);
+
+  const mapApiOfferStatus = (s: string): OfferStatus => {
+    const map: Record<string, OfferStatus> = {
+      Pending: 'pending', Countered: 'countered', Accepted: 'accepted',
+      Declined: 'declined', Withdrawn: 'declined', Expired: 'declined', Closed: 'declined',
+    };
+    return map[s] ?? 'pending';
+  };
+
+  const mapDtoToOffer = useCallback((dto: OfferDto, listing: ApiListing): Offer => ({
+    id: dto.offerId,
+    listingId: dto.listingId,
+    listingTitle: listing.title,
+    listingImage: listing.photos[0]?.photoUrl ?? '',
+    buyerName: dto.buyerFullName,
+    buyerId: dto.buyerId,
+    proposedPrice: dto.proposedPrice,
+    status: mapApiOfferStatus(dto.status),
+    message: dto.message ?? '',
+    submittedDate: dto.submittedAt.split('T')[0],
+    maxRounds: 3,
+    currentRound: dto.negotiationRound,
+    rounds: dto.negotiations.map((n) => ({
+      id: n.negotiationId,
+      actor: n.actorRole.toLowerCase() as 'buyer' | 'agent',
+      action: n.action.toLowerCase() as NegotiationRound['action'],
+      amount: n.proposedPrice,
+      message: n.message ?? '',
+      date: n.createdAt,
+    })),
+  }), []);
+
+  const loadOffers = useCallback(async () => {
+    setOffersLoading(true);
+    try {
+      const listings = await listingService.getAssignedListings();
+      setAssignedListings(listings);
+      const activeListings = listings.filter((l) => l.status === 'Active' || l.status === 'UnderOffer');
+      const results = await Promise.allSettled(
+        activeListings.map((l) => offerService.getOffersByListing(l.listingId)),
+      );
+      const allOffers: Offer[] = [];
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled') {
+          r.value.forEach((dto) => allOffers.push(mapDtoToOffer(dto, activeListings[i])));
+        }
+      });
+      setOffers(allOffers);
+    } catch { /* silently ignore */ }
+    finally { setOffersLoading(false); }
+  }, [mapDtoToOffer]);
+
+  useEffect(() => { loadOffers(); }, [loadOffers]);
 
   const handleMarkAsRead = useCallback(async (notificationId: number) => {
     try {
@@ -285,9 +328,54 @@ export default function AgentDashboardPage() {
   const handleDeclineAssignment  = (a: ListingAssignment) => { if (window.confirm(`Decline "${a.title}"?`)) console.log('Declining:', a.id); };
   const handleApproveListing     = (l: ListingAssignment) => console.log('Approving listing:', l.id);
   const handleRequestCorrections = (l: ListingAssignment) => { if (!correctionNote) { alert('Please provide a correction note.'); return; } console.log('Corrections:', { listingId: l.id, note: correctionNote }); setCorrectionNote(''); };
-  const handleAcceptOffer        = (o: Offer) => { if (window.confirm(`Accept offer of ${formatPrice(o.proposedPrice)} from ${o.buyerName}?`)) console.log('Accepting offer:', o.id); };
-  const handleDeclineOffer       = (o: Offer) => { if (window.confirm(`Decline offer from ${o.buyerName}?`)) console.log('Declining offer:', o.id); };
-  const handleCounterOffer       = (o: Offer) => { if (!counterAmount || !counterMessage) { alert('Please provide both counter amount and message.'); return; } if (o.currentRound >= o.maxRounds) { alert('Maximum negotiation rounds reached.'); return; } console.log('Counter offer:', { offerId: o.id, amount: counterAmount, message: counterMessage }); setCounterAmount(''); setCounterMessage(''); };
+
+  const handleAcceptOffer = async (o: Offer) => {
+    if (!window.confirm(`Accept offer of ${formatPrice(o.proposedPrice)} from ${o.buyerName}?`)) return;
+    setActionLoading(true);
+    try {
+      await offerService.acceptOffer(o.id);
+      await loadOffers();
+      setSelectedOffer(null);
+    } catch (err) {
+      alert(err instanceof ApiRequestError ? err.apiError.message : 'Failed to accept offer.');
+    } finally { setActionLoading(false); }
+  };
+
+  const handleDeclineOffer = async (o: Offer) => {
+    if (!window.confirm(`Decline offer from ${o.buyerName}?`)) return;
+    setActionLoading(true);
+    try {
+      await offerService.declineOffer(o.id);
+      await loadOffers();
+      setSelectedOffer(null);
+    } catch (err) {
+      alert(err instanceof ApiRequestError ? err.apiError.message : 'Failed to decline offer.');
+    } finally { setActionLoading(false); }
+  };
+
+  const handleCounterOffer = async (o: Offer) => {
+    const price = parseFloat(counterAmount.replace(/,/g, ''));
+    if (isNaN(price) || price <= 0) { alert('Please provide a valid counter amount.'); return; }
+    if (!counterMessage) { alert('Please provide a message for the buyer.'); return; }
+    if (!counterDeadline) { alert('Please set a response deadline.'); return; }
+    if (o.currentRound >= o.maxRounds) { alert('Maximum negotiation rounds (3) reached.'); return; }
+    setActionLoading(true);
+    try {
+      await offerService.counterOffer(o.id, {
+        revisedPrice: price,
+        responseDeadline: new Date(counterDeadline).toISOString(),
+        message: counterMessage,
+      });
+      await loadOffers();
+      setCounterAmount('');
+      setCounterMessage('');
+      setCounterDeadline('');
+      setSelectedOffer(null);
+    } catch (err) {
+      alert(err instanceof ApiRequestError ? err.apiError.message : 'Failed to send counter offer.');
+    } finally { setActionLoading(false); }
+  };
+
   const handleAssignInspector    = (i: PropertyInspector, date: string) => { console.log('Assigning inspector:', { inspectorId: i.id, date }); setShowInspectorModal(false); };
   const handleCloseTransaction   = (t: Transaction) => { if (!t.canClose) { alert('Transaction cannot be closed yet.'); return; } if (window.confirm(`Close transaction for "${t.listingTitle}"?`)) console.log('Closing transaction:', t.id); };
 
@@ -332,7 +420,7 @@ export default function AgentDashboardPage() {
           { tab: 'listings',      icon: <Building size={20} />,      label: 'Listing Review',
             count: mockAssignments.filter(a => a.assignmentStatus === 'accepted').length },
           { tab: 'offers',        icon: <FileText size={20} />,      label: 'Offer Management',
-            count: mockOffers.length },
+            count: offers.filter(o => o.status === 'pending' || o.status === 'countered').length },
           { tab: 'transactions',  icon: <ClipboardCheck size={20} />,label: 'Transactions' },
           { tab: 'messages',      icon: <MessageSquare size={20} />, label: 'Messages',
             count: mockConversations.reduce((s, c) => s + c.unreadCount, 0),
@@ -432,7 +520,7 @@ export default function AgentDashboardPage() {
                 {[
                   { label: 'Pending Assignments', value: mockAssignments.filter(a => a.assignmentStatus === 'pending').length,                           sub: 'Awaiting response', icon: <UserCheck className="text-yellow-500" size={24} /> },
                   { label: 'Active Listings',     value: mockAssignments.filter(a => a.listingStatus === 'active').length,                              sub: `Total: ${mockAssignments.filter(a => a.assignmentStatus === 'accepted').length}`, icon: <Building className="text-green-500" size={24} /> },
-                  { label: 'Pending Offers',      value: mockOffers.filter(o => o.status === 'pending' || o.status === 'countered').length,             sub: 'Require action',    icon: <FileText className="text-blue-500" size={24} /> },
+                  { label: 'Pending Offers',      value: offers.filter(o => o.status === 'pending' || o.status === 'countered').length,             sub: 'Require action',    icon: <FileText className="text-blue-500" size={24} /> },
                   { label: 'Active Transactions', value: mockTransactions.filter(t => t.status !== 'closed').length,                                   sub: 'In progress',       icon: <ClipboardCheck className="text-purple-500" size={24} /> },
                 ].map((stat) => (
                   <div key={stat.label} className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all">
@@ -456,7 +544,12 @@ export default function AgentDashboardPage() {
                       <button onClick={() => setActiveTab('offers')} className="text-sm text-blue-600 hover:text-blue-700 font-semibold">View All</button>
                     </div>
                     <div className="space-y-4">
-                      {mockOffers.slice(0, 3).map((offer) => (
+                      {offersLoading ? (
+                        <div className="flex justify-center py-6"><Loader2 className="animate-spin text-blue-600" size={28} /></div>
+                      ) : offers.length === 0 ? (
+                        <p className="text-center text-gray-500 py-6 text-sm">No offers on your listings yet.</p>
+                      ) : null}
+                      {offers.slice(0, 3).map((offer) => (
                         <div key={offer.id} onClick={() => { setSelectedOffer(offer); setActiveTab('offers'); }}
                           className="p-4 bg-gray-50 rounded-xl border border-gray-200 hover:shadow-md transition-all cursor-pointer">
                           <div className="flex gap-4">
@@ -723,9 +816,19 @@ export default function AgentDashboardPage() {
           {/* ── Offers List ── */}
           {activeTab === 'offers' && !selectedOffer && (
             <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
-              <p className="text-gray-700 font-semibold mb-6">You have {mockOffers.length} offers to manage</p>
+              {offersLoading ? (
+                <div className="flex justify-center py-16"><Loader2 className="animate-spin text-blue-600" size={40} /></div>
+              ) : offers.length === 0 ? (
+                <div className="text-center py-16">
+                  <FileText className="mx-auto text-gray-400 mb-4" size={48} />
+                  <p className="text-gray-600 font-semibold">No offers on your active listings yet.</p>
+                </div>
+              ) : null}
+              {offers.length > 0 && (
+              <p className="text-gray-700 font-semibold mb-6">You have {offers.length} offer{offers.length !== 1 ? 's' : ''} to manage</p>
+              )}
               <div className="space-y-4">
-                {mockOffers.map((offer) => (
+                {offers.map((offer) => (
                   <div key={offer.id} className="p-6 bg-gray-50 rounded-2xl border border-gray-200 hover:shadow-md transition-all">
                     <div className="flex gap-4 mb-4">
                       <div className="w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden">
@@ -815,7 +918,9 @@ export default function AgentDashboardPage() {
                 {(selectedOffer.status === 'pending' || selectedOffer.status === 'countered') && (
                   <div className="space-y-6">
                     <div className="p-6 bg-blue-50 border border-blue-200 rounded-xl">
-                      <h3 className="text-lg font-bold text-blue-900 mb-4">Counter Offer</h3>
+                      <h3 className="text-lg font-bold text-blue-900 mb-4">
+                        Counter Offer <span className="text-sm font-normal text-blue-700">(Round {selectedOffer.currentRound} of {selectedOffer.maxRounds})</span>
+                      </h3>
                       <div className="space-y-4">
                         <div>
                           <label className="block text-sm font-bold text-gray-900 mb-2">Counter Amount (USD)</label>
@@ -826,6 +931,12 @@ export default function AgentDashboardPage() {
                           </div>
                         </div>
                         <div>
+                          <label className="block text-sm font-bold text-gray-900 mb-2">Response Deadline</label>
+                          <input type="datetime-local" value={counterDeadline} onChange={(e) => setCounterDeadline(e.target.value)}
+                            min={new Date().toISOString().slice(0, 16)}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                        </div>
+                        <div>
                           <label className="block text-sm font-bold text-gray-900 mb-2">Message to Buyer</label>
                           <textarea rows={3} placeholder="Explain your counter offer..." value={counterMessage} onChange={(e) => setCounterMessage(e.target.value)}
                             className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none" />
@@ -833,13 +944,16 @@ export default function AgentDashboardPage() {
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <button onClick={() => handleAcceptOffer(selectedOffer)} className="py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors flex items-center justify-center gap-2">
-                        <CheckCircle size={20} /> Accept Offer
+                      <button onClick={() => handleAcceptOffer(selectedOffer)} disabled={actionLoading}
+                        className="py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                        {actionLoading ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle size={20} />} Accept Offer
                       </button>
-                      <button onClick={() => handleCounterOffer(selectedOffer)} className="py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2">
-                        <TrendingUp size={20} /> Send Counter
+                      <button onClick={() => handleCounterOffer(selectedOffer)} disabled={actionLoading}
+                        className="py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                        {actionLoading ? <Loader2 className="animate-spin" size={20} /> : <TrendingUp size={20} />} Send Counter
                       </button>
-                      <button onClick={() => handleDeclineOffer(selectedOffer)} className="py-3 bg-white text-red-600 font-bold rounded-xl border-2 border-red-200 hover:bg-red-50 transition-colors flex items-center justify-center gap-2">
+                      <button onClick={() => handleDeclineOffer(selectedOffer)} disabled={actionLoading}
+                        className="py-3 bg-white text-red-600 font-bold rounded-xl border-2 border-red-200 hover:bg-red-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
                         <XCircle size={20} /> Decline Offer
                       </button>
                     </div>
