@@ -1,0 +1,431 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{0E31458F-F64E-48D8-9D82-69EF242BF7FB}|TrustEstate.API\\TrustEstate.API.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0E31458F-F64E-48D8-9D82-69EF242BF7FB}|TrustEstate.API\\TrustEstate.API.csproj|solutionrelative:trustestate.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{3BE5933E-4C16-4E23-9078-F058861C3D23}|TrustEstate.Infrastructure\\TrustEstate.Infrastructure.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.infrastructure\\persistence\\trustestatedbcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{3BE5933E-4C16-4E23-9078-F058861C3D23}|TrustEstate.Infrastructure\\TrustEstate.Infrastructure.csproj|solutionrelative:trustestate.infrastructure\\persistence\\trustestatedbcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0E31458F-F64E-48D8-9D82-69EF242BF7FB}|TrustEstate.API\\TrustEstate.API.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.api\\controllers\\listingcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0E31458F-F64E-48D8-9D82-69EF242BF7FB}|TrustEstate.API\\TrustEstate.API.csproj|solutionrelative:trustestate.api\\controllers\\listingcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{3BE5933E-4C16-4E23-9078-F058861C3D23}|TrustEstate.Infrastructure\\TrustEstate.Infrastructure.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.infrastructure\\services\\listingservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{3BE5933E-4C16-4E23-9078-F058861C3D23}|TrustEstate.Infrastructure\\TrustEstate.Infrastructure.csproj|solutionrelative:trustestate.infrastructure\\services\\listingservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{3BE5933E-4C16-4E23-9078-F058861C3D23}|TrustEstate.Infrastructure\\TrustEstate.Infrastructure.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.infrastructure\\persistence\\repositories\\listingrepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{3BE5933E-4C16-4E23-9078-F058861C3D23}|TrustEstate.Infrastructure\\TrustEstate.Infrastructure.csproj|solutionrelative:trustestate.infrastructure\\persistence\\repositories\\listingrepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{3BE5933E-4C16-4E23-9078-F058861C3D23}|TrustEstate.Infrastructure\\TrustEstate.Infrastructure.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.infrastructure\\persistence\\configurations\\listingassignmentconfiguration.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{3BE5933E-4C16-4E23-9078-F058861C3D23}|TrustEstate.Infrastructure\\TrustEstate.Infrastructure.csproj|solutionrelative:trustestate.infrastructure\\persistence\\configurations\\listingassignmentconfiguration.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{3BE5933E-4C16-4E23-9078-F058861C3D23}|TrustEstate.Infrastructure\\TrustEstate.Infrastructure.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.infrastructure\\persistence\\configurations\\listingphotoconfiguration.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{3BE5933E-4C16-4E23-9078-F058861C3D23}|TrustEstate.Infrastructure\\TrustEstate.Infrastructure.csproj|solutionrelative:trustestate.infrastructure\\persistence\\configurations\\listingphotoconfiguration.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{3BE5933E-4C16-4E23-9078-F058861C3D23}|TrustEstate.Infrastructure\\TrustEstate.Infrastructure.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.infrastructure\\persistence\\configurations\\listingconfiguration.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{3BE5933E-4C16-4E23-9078-F058861C3D23}|TrustEstate.Infrastructure\\TrustEstate.Infrastructure.csproj|solutionrelative:trustestate.infrastructure\\persistence\\configurations\\listingconfiguration.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{F6756E2B-69A5-40CD-AAE0-8E269796032C}|TrustEstate.Application\\TrustEstate.Application.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.application\\interfaces\\listings\\ilistingservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{F6756E2B-69A5-40CD-AAE0-8E269796032C}|TrustEstate.Application\\TrustEstate.Application.csproj|solutionrelative:trustestate.application\\interfaces\\listings\\ilistingservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{F6756E2B-69A5-40CD-AAE0-8E269796032C}|TrustEstate.Application\\TrustEstate.Application.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.application\\interfaces\\listings\\ilistingrepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{F6756E2B-69A5-40CD-AAE0-8E269796032C}|TrustEstate.Application\\TrustEstate.Application.csproj|solutionrelative:trustestate.application\\interfaces\\listings\\ilistingrepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{F6756E2B-69A5-40CD-AAE0-8E269796032C}|TrustEstate.Application\\TrustEstate.Application.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.application\\dtos\\listings\\listingdtos.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{F6756E2B-69A5-40CD-AAE0-8E269796032C}|TrustEstate.Application\\TrustEstate.Application.csproj|solutionrelative:trustestate.application\\dtos\\listings\\listingdtos.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{41A8B908-54FE-46A9-930B-FCF29E324BCC}|TrustEstate.Domain\\TrustEstate.Domain.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.domain\\entities\\listingassignment.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{41A8B908-54FE-46A9-930B-FCF29E324BCC}|TrustEstate.Domain\\TrustEstate.Domain.csproj|solutionrelative:trustestate.domain\\entities\\listingassignment.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{41A8B908-54FE-46A9-930B-FCF29E324BCC}|TrustEstate.Domain\\TrustEstate.Domain.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.domain\\entities\\listingphoto.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{41A8B908-54FE-46A9-930B-FCF29E324BCC}|TrustEstate.Domain\\TrustEstate.Domain.csproj|solutionrelative:trustestate.domain\\entities\\listingphoto.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{41A8B908-54FE-46A9-930B-FCF29E324BCC}|TrustEstate.Domain\\TrustEstate.Domain.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.domain\\entities\\listing.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{41A8B908-54FE-46A9-930B-FCF29E324BCC}|TrustEstate.Domain\\TrustEstate.Domain.csproj|solutionrelative:trustestate.domain\\entities\\listing.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{41A8B908-54FE-46A9-930B-FCF29E324BCC}|TrustEstate.Domain\\TrustEstate.Domain.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.domain\\enums\\assignmentstatus.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{41A8B908-54FE-46A9-930B-FCF29E324BCC}|TrustEstate.Domain\\TrustEstate.Domain.csproj|solutionrelative:trustestate.domain\\enums\\assignmentstatus.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{41A8B908-54FE-46A9-930B-FCF29E324BCC}|TrustEstate.Domain\\TrustEstate.Domain.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.domain\\enums\\listingstatus.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{41A8B908-54FE-46A9-930B-FCF29E324BCC}|TrustEstate.Domain\\TrustEstate.Domain.csproj|solutionrelative:trustestate.domain\\enums\\listingstatus.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{41A8B908-54FE-46A9-930B-FCF29E324BCC}|TrustEstate.Domain\\TrustEstate.Domain.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.domain\\enums\\propertytype.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{41A8B908-54FE-46A9-930B-FCF29E324BCC}|TrustEstate.Domain\\TrustEstate.Domain.csproj|solutionrelative:trustestate.domain\\enums\\propertytype.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{41A8B908-54FE-46A9-930B-FCF29E324BCC}|TrustEstate.Domain\\TrustEstate.Domain.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.domain\\enums\\agencytype.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{41A8B908-54FE-46A9-930B-FCF29E324BCC}|TrustEstate.Domain\\TrustEstate.Domain.csproj|solutionrelative:trustestate.domain\\enums\\agencytype.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{3BE5933E-4C16-4E23-9078-F058861C3D23}|TrustEstate.Infrastructure\\TrustEstate.Infrastructure.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.infrastructure\\migrations\\20260430221630_addlistings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{3BE5933E-4C16-4E23-9078-F058861C3D23}|TrustEstate.Infrastructure\\TrustEstate.Infrastructure.csproj|solutionrelative:trustestate.infrastructure\\migrations\\20260430221630_addlistings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{3BE5933E-4C16-4E23-9078-F058861C3D23}|TrustEstate.Infrastructure\\TrustEstate.Infrastructure.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.infrastructure\\migrations\\trustestatedbcontextmodelsnapshot.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{3BE5933E-4C16-4E23-9078-F058861C3D23}|TrustEstate.Infrastructure\\TrustEstate.Infrastructure.csproj|solutionrelative:trustestate.infrastructure\\migrations\\trustestatedbcontextmodelsnapshot.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0E31458F-F64E-48D8-9D82-69EF242BF7FB}|TrustEstate.API\\TrustEstate.API.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.api\\appsettings.development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{0E31458F-F64E-48D8-9D82-69EF242BF7FB}|TrustEstate.API\\TrustEstate.API.csproj|solutionrelative:trustestate.api\\appsettings.development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0E31458F-F64E-48D8-9D82-69EF242BF7FB}|TrustEstate.API\\TrustEstate.API.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.api\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{0E31458F-F64E-48D8-9D82-69EF242BF7FB}|TrustEstate.API\\TrustEstate.API.csproj|solutionrelative:trustestate.api\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{3BE5933E-4C16-4E23-9078-F058861C3D23}|TrustEstate.Infrastructure\\TrustEstate.Infrastructure.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.infrastructure\\dependencyinjection.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{3BE5933E-4C16-4E23-9078-F058861C3D23}|TrustEstate.Infrastructure\\TrustEstate.Infrastructure.csproj|solutionrelative:trustestate.infrastructure\\dependencyinjection.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{41A8B908-54FE-46A9-930B-FCF29E324BCC}|TrustEstate.Domain\\TrustEstate.Domain.csproj|c:\\users\\user\\desktop\\trustestate\\code\\trust-estate-be\\trustestate\\trustestate.domain\\enums\\listingtype.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{41A8B908-54FE-46A9-930B-FCF29E324BCC}|TrustEstate.Domain\\TrustEstate.Domain.csproj|solutionrelative:trustestate.domain\\enums\\listingtype.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.API\\Program.cs",
+              "RelativeDocumentMoniker": "TrustEstate.API\\Program.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.API\\Program.cs",
+              "RelativeToolTip": "TrustEstate.API\\Program.cs",
+              "ViewState": "AgIAAA8AAAAAAAAAAAAIwBYAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-30T21:35:07.025Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "ListingController.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.API\\Controllers\\ListingController.cs",
+              "RelativeDocumentMoniker": "TrustEstate.API\\Controllers\\ListingController.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.API\\Controllers\\ListingController.cs",
+              "RelativeToolTip": "TrustEstate.API\\Controllers\\ListingController.cs",
+              "ViewState": "AgIAAI8AAAAAAAAAAAAuwLgAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-30T21:24:36.23Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "TrustEstateDbContext.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Infrastructure\\Persistence\\TrustEstateDbContext.cs",
+              "RelativeDocumentMoniker": "TrustEstate.Infrastructure\\Persistence\\TrustEstateDbContext.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Infrastructure\\Persistence\\TrustEstateDbContext.cs",
+              "RelativeToolTip": "TrustEstate.Infrastructure\\Persistence\\TrustEstateDbContext.cs",
+              "ViewState": "AgIAAAIAAAAAAAAAAAAxwBQAAABTAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-30T21:16:42.854Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "ListingService.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Infrastructure\\Services\\ListingService.cs",
+              "RelativeDocumentMoniker": "TrustEstate.Infrastructure\\Services\\ListingService.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Infrastructure\\Services\\ListingService.cs",
+              "RelativeToolTip": "TrustEstate.Infrastructure\\Services\\ListingService.cs",
+              "ViewState": "AgIAAGQBAAAAAAAAAAAuwI0BAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-30T21:22:33.802Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "ListingRepository.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Infrastructure\\Persistence\\Repositories\\ListingRepository.cs",
+              "RelativeDocumentMoniker": "TrustEstate.Infrastructure\\Persistence\\Repositories\\ListingRepository.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Infrastructure\\Persistence\\Repositories\\ListingRepository.cs",
+              "RelativeToolTip": "TrustEstate.Infrastructure\\Persistence\\Repositories\\ListingRepository.cs",
+              "ViewState": "AgIAAFcAAAAAAAAAAAA+wIAAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-30T21:21:33.383Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "ListingAssignmentConfiguration.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Infrastructure\\Persistence\\Configurations\\ListingAssignmentConfiguration.cs",
+              "RelativeDocumentMoniker": "TrustEstate.Infrastructure\\Persistence\\Configurations\\ListingAssignmentConfiguration.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Infrastructure\\Persistence\\Configurations\\ListingAssignmentConfiguration.cs",
+              "RelativeToolTip": "TrustEstate.Infrastructure\\Persistence\\Configurations\\ListingAssignmentConfiguration.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABUAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-05T14:15:20.981Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "ListingPhotoConfiguration.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Infrastructure\\Persistence\\Configurations\\ListingPhotoConfiguration.cs",
+              "RelativeDocumentMoniker": "TrustEstate.Infrastructure\\Persistence\\Configurations\\ListingPhotoConfiguration.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Infrastructure\\Persistence\\Configurations\\ListingPhotoConfiguration.cs",
+              "RelativeToolTip": "TrustEstate.Infrastructure\\Persistence\\Configurations\\ListingPhotoConfiguration.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABAAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-05T14:14:56.233Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "ListingDtos.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Application\\DTOs\\Listings\\ListingDtos.cs",
+              "RelativeDocumentMoniker": "TrustEstate.Application\\DTOs\\Listings\\ListingDtos.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Application\\DTOs\\Listings\\ListingDtos.cs",
+              "RelativeToolTip": "TrustEstate.Application\\DTOs\\Listings\\ListingDtos.cs",
+              "ViewState": "AgIAAIgAAAAAAAAAAAA+wLIAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-30T21:11:47.005Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "IListingRepository.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Application\\Interfaces\\Listings\\IListingRepository.cs",
+              "RelativeDocumentMoniker": "TrustEstate.Application\\Interfaces\\Listings\\IListingRepository.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Application\\Interfaces\\Listings\\IListingRepository.cs",
+              "RelativeToolTip": "TrustEstate.Application\\Interfaces\\Listings\\IListingRepository.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAmwBkAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-30T21:13:04.875Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "IListingService.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Application\\Interfaces\\Listings\\IListingService.cs",
+              "RelativeDocumentMoniker": "TrustEstate.Application\\Interfaces\\Listings\\IListingService.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Application\\Interfaces\\Listings\\IListingService.cs",
+              "RelativeToolTip": "TrustEstate.Application\\Interfaces\\Listings\\IListingService.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABsAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-30T21:13:49.102Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "ListingConfiguration.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Infrastructure\\Persistence\\Configurations\\ListingConfiguration.cs",
+              "RelativeDocumentMoniker": "TrustEstate.Infrastructure\\Persistence\\Configurations\\ListingConfiguration.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Infrastructure\\Persistence\\Configurations\\ListingConfiguration.cs",
+              "RelativeToolTip": "TrustEstate.Infrastructure\\Persistence\\Configurations\\ListingConfiguration.cs",
+              "ViewState": "AgIAAAcAAAAAAAAAAAAuwDEAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-30T21:15:48.348Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
+              "Title": "ListingAssignment.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Domain\\Entities\\ListingAssignment.cs",
+              "RelativeDocumentMoniker": "TrustEstate.Domain\\Entities\\ListingAssignment.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Domain\\Entities\\ListingAssignment.cs",
+              "RelativeToolTip": "TrustEstate.Domain\\Entities\\ListingAssignment.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA8AAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-05T14:10:49.298Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 12,
+              "Title": "ListingPhoto.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Domain\\Entities\\ListingPhoto.cs",
+              "RelativeDocumentMoniker": "TrustEstate.Domain\\Entities\\ListingPhoto.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Domain\\Entities\\ListingPhoto.cs",
+              "RelativeToolTip": "TrustEstate.Domain\\Entities\\ListingPhoto.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-05T14:10:26.022Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 14,
+              "Title": "AssignmentStatus.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Domain\\Enums\\AssignmentStatus.cs",
+              "RelativeDocumentMoniker": "TrustEstate.Domain\\Enums\\AssignmentStatus.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Domain\\Enums\\AssignmentStatus.cs",
+              "RelativeToolTip": "TrustEstate.Domain\\Enums\\AssignmentStatus.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAcAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-05T14:09:40.602Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 17,
+              "Title": "AgencyType.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Domain\\Enums\\AgencyType.cs",
+              "RelativeDocumentMoniker": "TrustEstate.Domain\\Enums\\AgencyType.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Domain\\Enums\\AgencyType.cs",
+              "RelativeToolTip": "TrustEstate.Domain\\Enums\\AgencyType.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-05T14:08:33.638Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 16,
+              "Title": "PropertyType.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Domain\\Enums\\PropertyType.cs",
+              "RelativeDocumentMoniker": "TrustEstate.Domain\\Enums\\PropertyType.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Domain\\Enums\\PropertyType.cs",
+              "RelativeToolTip": "TrustEstate.Domain\\Enums\\PropertyType.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAkAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-05T14:08:25.204Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 13,
+              "Title": "Listing.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Domain\\Entities\\Listing.cs",
+              "RelativeDocumentMoniker": "TrustEstate.Domain\\Entities\\Listing.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Domain\\Entities\\Listing.cs",
+              "RelativeToolTip": "TrustEstate.Domain\\Entities\\Listing.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAwCMAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-30T21:09:34.599Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 15,
+              "Title": "ListingStatus.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Domain\\Enums\\ListingStatus.cs",
+              "RelativeDocumentMoniker": "TrustEstate.Domain\\Enums\\ListingStatus.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Domain\\Enums\\ListingStatus.cs",
+              "RelativeToolTip": "TrustEstate.Domain\\Enums\\ListingStatus.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-30T21:07:31.026Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 18,
+              "Title": "20260430221630_AddListings.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Infrastructure\\Migrations\\20260430221630_AddListings.cs",
+              "RelativeDocumentMoniker": "TrustEstate.Infrastructure\\Migrations\\20260430221630_AddListings.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Infrastructure\\Migrations\\20260430221630_AddListings.cs",
+              "RelativeToolTip": "TrustEstate.Infrastructure\\Migrations\\20260430221630_AddListings.cs",
+              "ViewState": "AgIAAIQAAAAAAAAAAAAYwIEAAAATAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-30T23:11:51.191Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 19,
+              "Title": "TrustEstateDbContextModelSnapshot.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Infrastructure\\Migrations\\TrustEstateDbContextModelSnapshot.cs",
+              "RelativeDocumentMoniker": "TrustEstate.Infrastructure\\Migrations\\TrustEstateDbContextModelSnapshot.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Infrastructure\\Migrations\\TrustEstateDbContextModelSnapshot.cs",
+              "RelativeToolTip": "TrustEstate.Infrastructure\\Migrations\\TrustEstateDbContextModelSnapshot.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAuwOUAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-30T21:54:14.13Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 20,
+              "Title": "appsettings.Development.json",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.API\\appsettings.Development.json",
+              "RelativeDocumentMoniker": "TrustEstate.API\\appsettings.Development.json",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.API\\appsettings.Development.json",
+              "RelativeToolTip": "TrustEstate.API\\appsettings.Development.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAQAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2026-04-30T21:37:35.11Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 21,
+              "Title": "appsettings.json",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.API\\appsettings.json",
+              "RelativeDocumentMoniker": "TrustEstate.API\\appsettings.json",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.API\\appsettings.json",
+              "RelativeToolTip": "TrustEstate.API\\appsettings.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABYAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2026-04-30T21:31:45.206Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 22,
+              "Title": "DependencyInjection.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Infrastructure\\DependencyInjection.cs",
+              "RelativeDocumentMoniker": "TrustEstate.Infrastructure\\DependencyInjection.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Infrastructure\\DependencyInjection.cs",
+              "RelativeToolTip": "TrustEstate.Infrastructure\\DependencyInjection.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABYAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-30T21:26:40.833Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 23,
+              "Title": "ListingType.cs",
+              "DocumentMoniker": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Domain\\Enums\\ListingType.cs",
+              "RelativeDocumentMoniker": "TrustEstate.Domain\\Enums\\ListingType.cs",
+              "ToolTip": "C:\\Users\\User\\Desktop\\TrustEstate\\code\\trust-estate-be\\TrustEstate\\TrustEstate.Domain\\Enums\\ListingType.cs",
+              "RelativeToolTip": "TrustEstate.Domain\\Enums\\ListingType.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAYAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-30T21:08:38.884Z"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{56df62a4-05a3-4e5b-aa1a-99371ccfb997}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{cce594b6-0c39-4442-ba28-10c64ac7e89f}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

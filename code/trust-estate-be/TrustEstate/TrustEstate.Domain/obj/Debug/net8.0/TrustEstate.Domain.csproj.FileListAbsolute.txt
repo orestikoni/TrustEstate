@@ -1,0 +1,12 @@
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Domain\bin\Debug\net8.0\TrustEstate.Domain.deps.json
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Domain\bin\Debug\net8.0\TrustEstate.Domain.dll
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Domain\bin\Debug\net8.0\TrustEstate.Domain.pdb
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Domain\obj\Debug\net8.0\TrustEstate.Domain.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Domain\obj\Debug\net8.0\TrustEstate.Domain.AssemblyInfoInputs.cache
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Domain\obj\Debug\net8.0\TrustEstate.Domain.AssemblyInfo.cs
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Domain\obj\Debug\net8.0\TrustEstate.Domain.csproj.CoreCompileInputs.cache
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Domain\obj\Debug\net8.0\TrustEstate.Domain.sourcelink.json
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Domain\obj\Debug\net8.0\TrustEstate.Domain.dll
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Domain\obj\Debug\net8.0\refint\TrustEstate.Domain.dll
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Domain\obj\Debug\net8.0\TrustEstate.Domain.pdb
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Domain\obj\Debug\net8.0\ref\TrustEstate.Domain.dll

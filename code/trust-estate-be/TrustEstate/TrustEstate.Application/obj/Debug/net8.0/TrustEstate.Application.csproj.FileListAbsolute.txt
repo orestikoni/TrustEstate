@@ -1,0 +1,16 @@
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Application\bin\Debug\net8.0\TrustEstate.Application.deps.json
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Application\bin\Debug\net8.0\TrustEstate.Application.dll
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Application\bin\Debug\net8.0\TrustEstate.Application.pdb
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Application\bin\Debug\net8.0\TrustEstate.Domain.dll
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Application\bin\Debug\net8.0\TrustEstate.Domain.pdb
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Application\obj\Debug\net8.0\TrustEstate.Application.csproj.AssemblyReference.cache
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Application\obj\Debug\net8.0\TrustEstate.Application.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Application\obj\Debug\net8.0\TrustEstate.Application.AssemblyInfoInputs.cache
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Application\obj\Debug\net8.0\TrustEstate.Application.AssemblyInfo.cs
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Application\obj\Debug\net8.0\TrustEstate.Application.csproj.CoreCompileInputs.cache
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Application\obj\Debug\net8.0\TrustEstate.Application.sourcelink.json
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Application\obj\Debug\net8.0\TrustEst.2D34581C.Up2Date
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Application\obj\Debug\net8.0\TrustEstate.Application.dll
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Application\obj\Debug\net8.0\refint\TrustEstate.Application.dll
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Application\obj\Debug\net8.0\TrustEstate.Application.pdb
+C:\Users\User\Desktop\TrustEstate\code\trust-estate-be\TrustEstate\TrustEstate.Application\obj\Debug\net8.0\ref\TrustEstate.Application.dll
