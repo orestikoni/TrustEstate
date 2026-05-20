@@ -31,6 +31,7 @@ public sealed class OfferRepository : IOfferRepository
 
     public async Task<IEnumerable<Offer>> GetByBuyerIdAsync(int buyerId, CancellationToken ct = default)
         => await _db.Offers
+            .Include(o => o.Buyer)
             .Include(o => o.Listing)
             .Include(o => o.Negotiations.OrderBy(n => n.CreatedAt))
             .Where(o => o.BuyerId == buyerId)

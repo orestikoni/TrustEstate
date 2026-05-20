@@ -156,8 +156,39 @@ public class AdminService : IAdminService
                 Role = u.Role.ToString(),
                 AccountStatus = u.AccountStatus.ToString(),
                 CreatedAt = u.CreatedAt,
+                IsVerified = u.Role == UserRole.Agent
+                    ? (bool?)(u.AgentProfile != null && u.AgentProfile.IsVerified)
+                    : u.Role == UserRole.PropertyInspector
+                        ? (bool?)(u.InspectorProfile != null && u.InspectorProfile.IsVerified)
+                        : null,
             })
             .ToListAsync(ct);
+    }
+
+    public async Task VerifyUserAsync(int userId, CancellationToken ct = default)
+    {
+        var user = await _db.Users
+            .Include(u => u.AgentProfile)
+            .Include(u => u.InspectorProfile)
+            .FirstOrDefaultAsync(u => u.Id == userId, ct)
+            ?? throw new NotFoundException("User", userId);
+
+        if (user.Role == UserRole.Agent && user.AgentProfile != null)
+        {
+            user.AgentProfile.IsVerified = true;
+            user.AgentProfile.VerifiedAt = DateTime.UtcNow;
+        }
+        else if (user.Role == UserRole.PropertyInspector && user.InspectorProfile != null)
+        {
+            user.InspectorProfile.IsVerified = true;
+            user.InspectorProfile.VerifiedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            throw new BusinessRuleException("Only agents and property inspectors can be verified.");
+        }
+
+        await _db.SaveChangesAsync(ct);
     }
 
     public async Task SuspendUserAsync(int userId, string? reason, CancellationToken ct = default)

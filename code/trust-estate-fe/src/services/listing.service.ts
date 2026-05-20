@@ -74,6 +74,7 @@ export interface UpdateListingPayload {
   photoUrls: string[];
 }
 
+
 export interface PagedResult<T> {
   items: T[];
   totalCount: number;

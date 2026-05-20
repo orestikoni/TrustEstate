@@ -40,6 +40,7 @@ import {
   MessageSquare,
   Bell,
   ChevronRight,
+  Loader2,
 } from 'lucide-react';
 import {
   LineChart,
@@ -269,6 +270,23 @@ export default function AdminDashboardPage() {
       alert(err instanceof ApiRequestError ? err.apiError.message : 'Failed to resolve dispute.');
     } finally {
       setDisputeResolving(false);
+    }
+  };
+
+  // ── User verify ───────────────────────────────────────────────────────────
+  const [userVerifying, setUserVerifying] = useState<number | null>(null);
+
+  const handleVerifyUser = async (targetUser: AdminUser) => {
+    setUserVerifying(targetUser.userId);
+    try {
+      await adminService.verifyUser(targetUser.userId);
+      setUsers((prev) =>
+        prev.map((u) => u.userId === targetUser.userId ? { ...u, isVerified: true } : u),
+      );
+    } catch (err) {
+      alert(err instanceof ApiRequestError ? err.apiError.message : 'Failed to verify user.');
+    } finally {
+      setUserVerifying(null);
     }
   };
 
@@ -905,6 +923,18 @@ export default function AdminDashboardPage() {
                               </div>
                             ) : (
                               <div className="flex gap-2">
+                                {(user.role === 'Agent' || user.role === 'PropertyInspector') && user.isVerified === false && (
+                                  <button
+                                    onClick={() => handleVerifyUser(user)}
+                                    disabled={userVerifying === user.userId}
+                                    title="Verify this user"
+                                    className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50"
+                                  >
+                                    {userVerifying === user.userId
+                                      ? <Loader2 size={18} className="animate-spin" />
+                                      : <UserCheck size={18} />}
+                                  </button>
+                                )}
                                 <button className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"><Eye size={18} /></button>
                                 <button onClick={() => setSelectedUser(user)} className="p-2 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"><Edit size={18} /></button>
                               </div>

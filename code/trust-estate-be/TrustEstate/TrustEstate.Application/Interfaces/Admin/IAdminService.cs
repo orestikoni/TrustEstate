@@ -14,6 +14,7 @@ public interface IAdminService
 
     Task<IEnumerable<AdminUserDto>> GetAllUsersAsync(CancellationToken ct = default);
     Task SuspendUserAsync(int userId, string? reason, CancellationToken ct = default);
+    Task VerifyUserAsync(int userId, CancellationToken ct = default);
 
     Task<IEnumerable<AdminInspectionDto>> GetAllInspectionsAsync(CancellationToken ct = default);
 

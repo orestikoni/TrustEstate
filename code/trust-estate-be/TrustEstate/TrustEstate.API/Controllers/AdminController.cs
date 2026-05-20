@@ -87,6 +87,16 @@ public sealed class AdminController : ControllerBase
         return NoContent();
     }
 
+    [HttpPut("users/{userId:int}/verify")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> VerifyUser(int userId, CancellationToken ct)
+    {
+        await _admin.VerifyUserAsync(userId, ct);
+        return NoContent();
+    }
+
     [HttpGet("inspections")]
     [ProducesResponseType(typeof(IEnumerable<AdminInspectionDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAllInspections(CancellationToken ct)

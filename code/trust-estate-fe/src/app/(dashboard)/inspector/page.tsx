@@ -28,7 +28,9 @@ import {
   User,
   Mail,
   AlertTriangle,
+  Loader2,
 } from 'lucide-react';
+import { useRef } from 'react';
 import { InspectionCard } from '@/components/inspector/InspectionCard';
 import { InspectionReportForm } from '@/components/inspector/InspectionReportForm';
 import { FinalVerdictForm } from '@/components/inspector/FinalVerdictForm';
@@ -159,6 +161,20 @@ export default function InspectorDashboardPage() {
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [verdictSubmitting, setVerdictSubmitting] = useState(false);
 
+  // ── Toast ─────────────────────────────────────────────────────────────────
+  const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' | 'warning' } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToast = (message: string, type: 'error' | 'success' | 'warning' = 'error') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ message, type });
+    toastTimerRef.current = setTimeout(() => setToast(null), 5000);
+  };
+
+  // ── Confirm dialog ────────────────────────────────────────────────────────
+  const [confirmDialog, setConfirmDialog] = useState<{
+    message: string; confirmLabel: string; onConfirm: () => void;
+  } | null>(null);
+
   // ── Notifications ─────────────────────────────────────────────────────────
   const [notifications, setNotifications] = useState<ApiNotification[]>([]);
 
@@ -214,7 +230,7 @@ export default function InspectorDashboardPage() {
       setInspections(prev => prev.map(i => i.id === inspection.id ? { ...i, status: newStatus } : i));
       setSelectedInspection(prev => prev?.id === inspection.id ? { ...prev, status: newStatus } : prev);
     } catch (err) {
-      alert(err instanceof ApiRequestError ? err.apiError.message : 'Failed to update status.');
+      showToast(err instanceof ApiRequestError ? err.apiError.message : 'Failed to update status.');
     } finally {
       setStatusUpdating(false);
     }
@@ -236,7 +252,7 @@ export default function InspectorDashboardPage() {
     for (const cat of categories) {
       const d = report[cat];
       if (!d.findings || !d.rating || !d.severity) {
-        alert(`Please complete all fields for ${cat.replace(/([A-Z])/g, ' $1').trim()}`);
+        showToast(`Please complete all fields for ${cat.replace(/([A-Z])/g, ' $1').trim()}`, 'warning');
         return;
       }
     }
@@ -255,33 +271,39 @@ export default function InspectorDashboardPage() {
       setShowReportForm(false);
       setShowVerdictForm(true);
     } catch (err) {
-      alert(err instanceof ApiRequestError ? err.apiError.message : 'Failed to submit report.');
+      showToast(err instanceof ApiRequestError ? err.apiError.message : 'Failed to submit report.');
     } finally {
       setReportSubmitting(false);
     }
   };
 
-  const handleSubmitVerdict = async (verdict: FinalVerdict) => {
-    if (!window.confirm(`Submit final verdict as "${verdict.toUpperCase().replace(/_/g, ' ')}"? This cannot be undone.`)) return;
-    setVerdictSubmitting(true);
-    try {
-      await inspectionService.submitVerdict(selectedInspection!.id, VERDICT_MAP[verdict]);
-      await loadInspections();
-      setReport({
-        inspectionId: 0,
-        structuralIntegrity: { ...emptyCategory },
-        plumbing:            { ...emptyCategory },
-        electrical:          { ...emptyCategory },
-        safety:              { ...emptyCategory },
-        locked: false,
-      });
-      setShowVerdictForm(false);
-      setSelectedInspection(null);
-    } catch (err) {
-      alert(err instanceof ApiRequestError ? err.apiError.message : 'Failed to submit verdict.');
-    } finally {
-      setVerdictSubmitting(false);
-    }
+  const handleSubmitVerdict = (verdict: FinalVerdict) => {
+    setConfirmDialog({
+      message: `Submit final verdict as "${verdict.toUpperCase().replace(/_/g, ' ')}"? This cannot be undone.`,
+      confirmLabel: 'Submit Verdict',
+      onConfirm: async () => {
+        setVerdictSubmitting(true);
+        try {
+          await inspectionService.submitVerdict(selectedInspection!.id, VERDICT_MAP[verdict]);
+          await loadInspections();
+          setReport({
+            inspectionId: 0,
+            structuralIntegrity: { ...emptyCategory },
+            plumbing:            { ...emptyCategory },
+            electrical:          { ...emptyCategory },
+            safety:              { ...emptyCategory },
+            locked: false,
+          });
+          setShowVerdictForm(false);
+          setSelectedInspection(null);
+          showToast('Final verdict submitted successfully.', 'success');
+        } catch (err) {
+          showToast(err instanceof ApiRequestError ? err.apiError.message : 'Failed to submit verdict.');
+        } finally {
+          setVerdictSubmitting(false);
+        }
+      },
+    });
   };
 
   const initials = user ? `${user.firstName[0] ?? ''}${user.lastName[0] ?? ''}`.toUpperCase() : '??';
@@ -364,6 +386,54 @@ export default function InspectorDashboardPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-200 via-gray-100 to-gray-200 flex">
+
+      {/* ── Toast ─────────────────────────────────────────────────────────────── */}
+      {toast && (
+        <div className={`fixed top-6 right-6 z-[300] flex items-start gap-3 px-5 py-4 rounded-2xl shadow-2xl border max-w-sm transition-all ${
+          toast.type === 'error'   ? 'bg-red-50 border-red-200 text-red-900' :
+          toast.type === 'success' ? 'bg-green-50 border-green-200 text-green-900' :
+                                     'bg-amber-50 border-amber-200 text-amber-900'
+        }`}>
+          <div className="mt-0.5 flex-shrink-0">
+            {toast.type === 'error'   && <XCircle    size={20} className="text-red-500" />}
+            {toast.type === 'success' && <CheckCircle size={20} className="text-green-500" />}
+            {toast.type === 'warning' && <AlertTriangle size={20} className="text-amber-500" />}
+          </div>
+          <p className="text-sm font-medium leading-snug">{toast.message}</p>
+          <button onClick={() => setToast(null)} className="ml-auto -mt-0.5 -mr-1 p-1 rounded-lg hover:bg-black/10 transition-colors flex-shrink-0">
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* ── Confirm Dialog ────────────────────────────────────────────────────── */}
+      {confirmDialog && (
+        <div className="fixed inset-0 bg-black/40 z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 max-w-md w-full p-6">
+            <div className="flex items-start gap-3 mb-6">
+              <div className="p-2 bg-amber-100 rounded-xl flex-shrink-0">
+                <AlertTriangle size={22} className="text-amber-600" />
+              </div>
+              <p className="text-gray-800 font-medium leading-snug mt-1">{confirmDialog.message}</p>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmDialog(null)}
+                className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { const fn = confirmDialog.onConfirm; setConfirmDialog(null); fn(); }}
+                className="px-5 py-2.5 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors"
+              >
+                {confirmDialog.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div className="lg:hidden fixed inset-0 bg-black/50 z-40" onClick={() => setSidebarOpen(false)}>
@@ -665,6 +735,17 @@ export default function InspectorDashboardPage() {
                         className="px-6 py-3 bg-yellow-600 text-white font-semibold rounded-xl hover:bg-yellow-700 transition-colors flex items-center gap-2 disabled:opacity-50">
                         <Send size={18} /> Submit Final Verdict
                       </button>
+                    </div>
+                  ) : selectedInspection.status !== 'completed' ? (
+                    <div className="p-6 bg-gray-50 border-2 border-gray-200 rounded-xl">
+                      <div className="flex items-center gap-3 mb-2">
+                        <Clock className="text-gray-400" size={24} />
+                        <p className="text-lg font-bold text-gray-700">Report Not Yet Available</p>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        You must <strong>mark the inspection as Completed</strong> before you can submit a report.
+                        Use the &quot;Update Inspection Status&quot; section below.
+                      </p>
                     </div>
                   ) : (
                     <div className="p-6 bg-blue-50 border-2 border-blue-200 rounded-xl">

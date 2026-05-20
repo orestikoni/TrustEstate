@@ -121,7 +121,7 @@ public sealed class InspectionController : ControllerBase
     // ── Owner ─────────────────────────────────────────────────────────────────
 
     [HttpGet("listing/{listingId:int}/report/owner")]
-    [Authorize(Roles = "Owner")]
+    [Authorize(Roles = "PropertyOwner")]
     [ProducesResponseType(typeof(InspectionReportDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

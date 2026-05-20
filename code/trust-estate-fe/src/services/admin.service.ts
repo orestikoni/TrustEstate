@@ -49,6 +49,7 @@ export interface AdminUser {
   role: string;
   accountStatus: string;
   createdAt: string;
+  isVerified: boolean | null;
 }
 
 export interface AdminInspection {
@@ -109,6 +110,9 @@ export const adminService = {
 
   suspendUser: (userId: number, reason?: string) =>
     apiClient.put<void>(`/admin/users/${userId}/suspend`, { reason: reason ?? null }),
+
+  verifyUser: (userId: number) =>
+    apiClient.put<void>(`/admin/users/${userId}/verify`, {}),
 
   getInspections: () =>
     apiClient.get<AdminInspection[]>('/admin/inspections'),

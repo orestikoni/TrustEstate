@@ -55,6 +55,7 @@ public sealed record AdminUserDto
     public string Role { get; init; } = string.Empty;
     public string AccountStatus { get; init; } = string.Empty;
     public DateTime CreatedAt { get; init; }
+    public bool? IsVerified { get; init; }
 }
 
 public sealed record SuspendUserRequest
