@@ -113,3 +113,19 @@ public sealed record InspectorDto
     public string LastName { get; init; } = string.Empty;
     public string? ProfessionalQualifications { get; init; }
 }
+
+public sealed record MyInspectionDto
+{
+    public int InspectionId { get; init; }
+    public int ListingId { get; init; }
+    public string PropertyTitle { get; init; } = string.Empty;
+    public string PropertyAddress { get; init; } = string.Empty;
+    public string? PhotoUrl { get; init; }
+    public string AgentName { get; init; } = string.Empty;
+    public string AgentEmail { get; init; } = string.Empty;
+    public string OwnerName { get; init; } = string.Empty;
+    public DateTime ScheduledDate { get; init; }
+    public DateTime AssignedAt { get; init; }
+    public string Status { get; init; } = string.Empty;
+    public InspectionReportDto? Report { get; init; }
+}

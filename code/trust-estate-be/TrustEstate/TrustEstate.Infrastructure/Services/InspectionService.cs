@@ -22,6 +22,40 @@ public sealed class InspectionService : IInspectionService
         _db = db;
     }
 
+    // ── Inspector: Get own assigned inspections ───────────────────────────────
+
+    public async Task<IEnumerable<MyInspectionDto>> GetMyInspectionsAsync(int inspectorId, CancellationToken ct = default)
+    {
+        var inspections = await _db.Inspections
+            .Include(i => i.Listing)
+                .ThenInclude(l => l.Owner)
+            .Include(i => i.Listing)
+                .ThenInclude(l => l.Photos.OrderBy(p => p.DisplayOrder))
+            .Include(i => i.Agent)
+            .Include(i => i.Report)
+                .ThenInclude(r => r!.Categories)
+                    .ThenInclude(c => c.Photos)
+            .Where(i => i.InspectorId == inspectorId)
+            .OrderByDescending(i => i.ScheduledDate)
+            .ToListAsync(ct);
+
+        return inspections.Select(i => new MyInspectionDto
+        {
+            InspectionId = i.InspectionId,
+            ListingId = i.ListingId,
+            PropertyTitle = i.Listing.Title,
+            PropertyAddress = $"{i.Listing.Address}, {i.Listing.City}, {i.Listing.Country}",
+            PhotoUrl = i.Listing.Photos.OrderBy(p => p.DisplayOrder).Select(p => p.PhotoUrl).FirstOrDefault(),
+            AgentName = $"{i.Agent.FirstName} {i.Agent.LastName}".Trim(),
+            AgentEmail = i.Agent.Email,
+            OwnerName = $"{i.Listing.Owner.FirstName} {i.Listing.Owner.LastName}".Trim(),
+            ScheduledDate = i.ScheduledDate,
+            AssignedAt = i.AssignedAt,
+            Status = i.Status.ToString(),
+            Report = i.Report != null ? MapReportToDto(i.Report) : null,
+        });
+    }
+
     // ── Agent: Get available inspectors ──────────────────────────────────────
 
     public async Task<IEnumerable<InspectorDto>> GetAvailableInspectorsAsync(CancellationToken ct = default)

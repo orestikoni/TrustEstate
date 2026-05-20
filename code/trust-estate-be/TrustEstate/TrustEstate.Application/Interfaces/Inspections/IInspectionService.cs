@@ -5,6 +5,7 @@ namespace TrustEstate.Application.Interfaces.Inspections;
 public interface IInspectionService
 {
     Task<IEnumerable<InspectorDto>> GetAvailableInspectorsAsync(CancellationToken ct = default);
+    Task<IEnumerable<MyInspectionDto>> GetMyInspectionsAsync(int inspectorId, CancellationToken ct = default);
     Task<InspectionDto> AssignInspectorAsync(int agentId, AssignInspectorRequest request, CancellationToken ct = default);
     Task<InspectionDto> ReassignInspectorAsync(int agentId, int inspectionId, ReassignInspectorRequest request, CancellationToken ct = default);
     Task<InspectionDto> UpdateInspectionStatusAsync(int inspectorId, int inspectionId, UpdateInspectionStatusRequest request, CancellationToken ct = default);

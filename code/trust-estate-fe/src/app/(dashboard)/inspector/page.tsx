@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { inspectionService, type MyInspectionDto } from '@/services/inspection.service';
 import { notificationService, type ApiNotification, formatNotificationDate } from '@/services/notification.service';
+import { ApiRequestError } from '@/lib/api-client';
 import { useAuth } from '@/store/auth.context';
 import Link from 'next/link';
 import {
@@ -10,9 +12,6 @@ import {
   Settings,
   LogOut,
   MapPin,
-  Bed,
-  Bath,
-  Square,
   Menu,
   X,
   CheckCircle,
@@ -27,7 +26,6 @@ import {
   Eye,
   FileText,
   User,
-  Phone,
   Mail,
   AlertTriangle,
 } from 'lucide-react';
@@ -42,19 +40,13 @@ type FinalVerdict = 'passed' | 'passed_with_conditions' | 'failed';
 
 interface AssignedInspection {
   id: number;
-  propertyId: number;
   propertyTitle: string;
   propertyAddress: string;
-  propertyImage: string;
-  bedrooms: number;
-  bathrooms: number;
-  area: number;
+  propertyImage: string | null;
   scheduledDate: string;
   scheduledTime: string;
   status: InspectionStatus;
   agentName: string;
-  agentId: number;
-  agentPhone: string;
   agentEmail: string;
   ownerName: string;
   assignedDate: string;
@@ -80,71 +72,94 @@ interface InspectionReport {
   locked: boolean;
 }
 
-
-const mockInspections: AssignedInspection[] = [
-  {
-    id: 1, propertyId: 101,
-    propertyTitle: 'Modern Luxury Villa',
-    propertyAddress: '123 Ocean Drive, Beverly Hills, CA 90210',
-    propertyImage: 'https://images.unsplash.com/photo-1759355787092-87e4eee09600?w=600&auto=format&fit=crop',
-    bedrooms: 5, bathrooms: 4, area: 4500,
-    scheduledDate: '2024-03-18', scheduledTime: '10:00 AM',
-    status: 'scheduled',
-    agentName: 'Sarah Anderson', agentId: 1,
-    agentPhone: '(555) 123-4567', agentEmail: 'sarah.a@trustestate.com',
-    ownerName: 'Robert Chen', assignedDate: '2024-03-14', hasReport: false,
-  },
-  {
-    id: 2, propertyId: 102,
-    propertyTitle: 'Downtown Penthouse',
-    propertyAddress: '456 Park Avenue, New York, NY 10022',
-    propertyImage: 'https://images.unsplash.com/photo-1515263487990-61b07816b324?w=600&auto=format&fit=crop',
-    bedrooms: 3, bathrooms: 2, area: 2200,
-    scheduledDate: '2024-03-16', scheduledTime: '2:00 PM',
-    status: 'in_progress',
-    agentName: 'Michael Chen', agentId: 2,
-    agentPhone: '(555) 234-5678', agentEmail: 'michael.c@trustestate.com',
-    ownerName: 'Jennifer Martinez', assignedDate: '2024-03-12', hasReport: false,
-  },
-  {
-    id: 3, propertyId: 103,
-    propertyTitle: 'Beachfront Paradise',
-    propertyAddress: '789 Beach Road, San Diego, CA 92101',
-    propertyImage: 'https://images.unsplash.com/photo-1771190252113-aa988822596f?w=600&auto=format&fit=crop',
-    bedrooms: 5, bathrooms: 4, area: 4500,
-    scheduledDate: '2024-03-14', scheduledTime: '9:00 AM',
-    status: 'completed',
-    agentName: 'Sarah Anderson', agentId: 1,
-    agentPhone: '(555) 123-4567', agentEmail: 'sarah.a@trustestate.com',
-    ownerName: 'Lisa Anderson', assignedDate: '2024-03-10', hasReport: false,
-  },
-  {
-    id: 4, propertyId: 104,
-    propertyTitle: 'Suburban Family Home',
-    propertyAddress: '321 Maple Street, Portland, OR 97201',
-    propertyImage: 'https://images.unsplash.com/photo-1765765234094-bc009a3bba62?w=600&auto=format&fit=crop',
-    bedrooms: 4, bathrooms: 3, area: 3200,
-    scheduledDate: '2024-03-12', scheduledTime: '11:00 AM',
-    status: 'report_submitted',
-    agentName: 'Emily Rodriguez', agentId: 3,
-    agentPhone: '(555) 345-6789', agentEmail: 'emily.r@trustestate.com',
-    ownerName: 'David Thompson', assignedDate: '2024-03-08', hasReport: true,
-    finalVerdict: 'passed',
-  },
-];
-
-
 const emptyCategory: CategoryFindings = { findings: '', rating: '', severity: '', photos: [] };
 
 type ReportCategory = keyof Omit<InspectionReport, 'inspectionId' | 'finalVerdict' | 'submittedDate' | 'locked'>;
 
+const CATEGORY_KEY_TO_NAME: Record<string, string> = {
+  structuralIntegrity: 'StructuralIntegrity',
+  plumbing: 'Plumbing',
+  electrical: 'Electrical',
+  safety: 'Safety',
+};
+
+const VERDICT_MAP: Record<FinalVerdict, string> = {
+  passed: 'Passed',
+  passed_with_conditions: 'PassedWithConditions',
+  failed: 'Failed',
+};
+
+const capitalize = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+
+const mapVerdictFromBackend = (v: string | null | undefined): FinalVerdict | undefined => {
+  if (v === 'Passed') return 'passed';
+  if (v === 'PassedWithConditions') return 'passed_with_conditions';
+  if (v === 'Failed') return 'failed';
+  return undefined;
+};
+
+const getDerivedStatus = (dto: MyInspectionDto): InspectionStatus => {
+  if (dto.status === 'Scheduled') return 'scheduled';
+  if (dto.status === 'InProgress') return 'in_progress';
+  if (dto.report?.isLocked === true) return 'report_submitted';
+  return 'completed';
+};
+
+const mapToAssigned = (dto: MyInspectionDto): AssignedInspection => {
+  const d = new Date(dto.scheduledDate);
+  return {
+    id: dto.inspectionId,
+    propertyTitle: dto.propertyTitle,
+    propertyAddress: dto.propertyAddress,
+    propertyImage: dto.photoUrl,
+    scheduledDate: d.toLocaleDateString(),
+    scheduledTime: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    status: getDerivedStatus(dto),
+    agentName: dto.agentName,
+    agentEmail: dto.agentEmail,
+    ownerName: dto.ownerName,
+    assignedDate: new Date(dto.assignedAt).toLocaleDateString(),
+    hasReport: dto.report !== null,
+    finalVerdict: mapVerdictFromBackend(dto.report?.finalVerdict),
+  };
+};
+
 export default function InspectorDashboardPage() {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'inspections' | 'history' | 'notifications'>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedInspection, setSelectedInspection] = useState<AssignedInspection | null>(null);
   const [showReportForm, setShowReportForm] = useState(false);
   const [showVerdictForm, setShowVerdictForm] = useState(false);
+
+  // ── Inspections API state ─────────────────────────────────────────────────
+  const [inspections, setInspections] = useState<AssignedInspection[]>([]);
+  const [inspectionsLoading, setInspectionsLoading] = useState(false);
+  const [inspectionsError, setInspectionsError] = useState<string | null>(null);
+
+  const loadInspections = useCallback(async () => {
+    setInspectionsLoading(true);
+    setInspectionsError(null);
+    try {
+      const data = await inspectionService.getMyInspections();
+      setInspections(data.map(mapToAssigned));
+    } catch (err) {
+      setInspectionsError(
+        err instanceof ApiRequestError ? err.apiError.message : 'Failed to load inspections.',
+      );
+    } finally {
+      setInspectionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadInspections(); }, [loadInspections]);
+
+  // ── Action loading states ─────────────────────────────────────────────────
+  const [statusUpdating, setStatusUpdating] = useState(false);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [verdictSubmitting, setVerdictSubmitting] = useState(false);
+
+  // ── Notifications ─────────────────────────────────────────────────────────
   const [notifications, setNotifications] = useState<ApiNotification[]>([]);
 
   const loadNotifications = useCallback(async () => {
@@ -163,6 +178,7 @@ export default function InspectorDashboardPage() {
     } catch { /* silently ignore */ }
   }, []);
 
+  // ── Report form state ─────────────────────────────────────────────────────
   const [report, setReport] = useState<InspectionReport>({
     inspectionId: 0,
     structuralIntegrity: { ...emptyCategory },
@@ -172,6 +188,7 @@ export default function InspectorDashboardPage() {
     locked: false,
   });
 
+  // ── Status / verdict helpers ──────────────────────────────────────────────
   const getStatusConfig = (status: InspectionStatus) => {
     switch (status) {
       case 'scheduled':        return { label: 'Scheduled',        color: 'bg-blue-100 text-blue-700 border-blue-300',     icon: Calendar };
@@ -189,21 +206,32 @@ export default function InspectorDashboardPage() {
     }
   };
 
-  const handleUpdateStatus = (inspection: AssignedInspection, newStatus: InspectionStatus) =>
-    console.log('Updating status:', { inspectionId: inspection.id, newStatus });
+  // ── Handlers ─────────────────────────────────────────────────────────────
+  const handleUpdateStatus = async (inspection: AssignedInspection, newStatus: 'in_progress' | 'completed') => {
+    setStatusUpdating(true);
+    try {
+      await inspectionService.updateStatus(inspection.id, newStatus === 'in_progress' ? 'InProgress' : 'Completed');
+      setInspections(prev => prev.map(i => i.id === inspection.id ? { ...i, status: newStatus } : i));
+      setSelectedInspection(prev => prev?.id === inspection.id ? { ...prev, status: newStatus } : prev);
+    } catch (err) {
+      alert(err instanceof ApiRequestError ? err.apiError.message : 'Failed to update status.');
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
 
   const handleCategoryChange = (category: ReportCategory, field: keyof CategoryFindings, value: unknown) =>
-    setReport((prev) => ({ ...prev, [category]: { ...prev[category], [field]: value } }));
+    setReport(prev => ({ ...prev, [category]: { ...prev[category], [field]: value } }));
 
   const handlePhotoUpload = (category: ReportCategory, files: FileList | null) => {
     if (!files) return;
-    setReport((prev) => ({
+    setReport(prev => ({
       ...prev,
       [category]: { ...prev[category], photos: [...prev[category].photos, ...Array.from(files)] },
     }));
   };
 
-  const handleSubmitReport = () => {
+  const handleSubmitReport = async () => {
     const categories: ReportCategory[] = ['structuralIntegrity', 'plumbing', 'electrical', 'safety'];
     for (const cat of categories) {
       const d = report[cat];
@@ -212,18 +240,54 @@ export default function InspectorDashboardPage() {
         return;
       }
     }
-    setReport((prev) => ({ ...prev, locked: true, submittedDate: new Date().toISOString() }));
-    setShowReportForm(false);
-    setShowVerdictForm(true);
-  };
-
-  const handleSubmitVerdict = (verdict: FinalVerdict) => {
-    if (window.confirm(`Are you sure you want to submit the final verdict as "${verdict.toUpperCase().replace(/_/g, ' ')}"? This action cannot be undone.`)) {
-      setReport((prev) => ({ ...prev, finalVerdict: verdict }));
-      setShowVerdictForm(false);
-      setSelectedInspection(null);
+    setReportSubmitting(true);
+    try {
+      const categoryInputs = categories.map(cat => ({
+        categoryName: CATEGORY_KEY_TO_NAME[cat],
+        findings: report[cat].findings,
+        passFail: capitalize(report[cat].rating),
+        severity: capitalize(report[cat].severity),
+        photoUrls: [] as string[],
+      }));
+      await inspectionService.submitReport(selectedInspection!.id, categoryInputs);
+      setReport(prev => ({ ...prev, locked: true, submittedDate: new Date().toISOString() }));
+      setSelectedInspection(prev => prev ? { ...prev, hasReport: true } : prev);
+      setShowReportForm(false);
+      setShowVerdictForm(true);
+    } catch (err) {
+      alert(err instanceof ApiRequestError ? err.apiError.message : 'Failed to submit report.');
+    } finally {
+      setReportSubmitting(false);
     }
   };
+
+  const handleSubmitVerdict = async (verdict: FinalVerdict) => {
+    if (!window.confirm(`Submit final verdict as "${verdict.toUpperCase().replace(/_/g, ' ')}"? This cannot be undone.`)) return;
+    setVerdictSubmitting(true);
+    try {
+      await inspectionService.submitVerdict(selectedInspection!.id, VERDICT_MAP[verdict]);
+      await loadInspections();
+      setReport({
+        inspectionId: 0,
+        structuralIntegrity: { ...emptyCategory },
+        plumbing:            { ...emptyCategory },
+        electrical:          { ...emptyCategory },
+        safety:              { ...emptyCategory },
+        locked: false,
+      });
+      setShowVerdictForm(false);
+      setSelectedInspection(null);
+    } catch (err) {
+      alert(err instanceof ApiRequestError ? err.apiError.message : 'Failed to submit verdict.');
+    } finally {
+      setVerdictSubmitting(false);
+    }
+  };
+
+  const initials = user ? `${user.firstName[0] ?? ''}${user.lastName[0] ?? ''}`.toUpperCase() : '??';
+  const fullName = user ? `${user.firstName} ${user.lastName}`.trim() : '';
+  const activeInspections = inspections.filter(i => i.status !== 'report_submitted');
+  const completedInspections = inspections.filter(i => i.status === 'report_submitted');
 
   const Sidebar = () => (
     <div className="h-full bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 flex flex-col shadow-2xl">
@@ -244,28 +308,29 @@ export default function InspectorDashboardPage() {
       {/* User Profile */}
       <div className="p-6 border-b border-blue-500/30">
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-blue-600 text-lg font-bold shadow-lg">JS</div>
+          <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-blue-600 text-lg font-bold shadow-lg">{initials}</div>
           <div>
-            <p className="font-bold text-white">John Smith</p>
-            <p className="text-sm text-blue-200">john.s@email.com</p>
+            <p className="font-bold text-white">{fullName}</p>
+            <p className="text-sm text-blue-200">{user?.emailAddress}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/30 rounded-lg">
-          <Award className="text-yellow-400" size={16} />
-          <span className="text-sm text-white font-medium">Verified Inspector</span>
-        </div>
-        <p className="text-xs text-blue-200 mt-2">License: INS-12345-CA</p>
+        {user?.accountStatus === 'Active' && (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/30 rounded-lg">
+            <Award className="text-yellow-400" size={16} />
+            <span className="text-sm text-white font-medium">Verified Inspector</span>
+          </div>
+        )}
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-2">
         {[
-          { tab: 'dashboard',     icon: <Home          size={20} />, label: 'Dashboard' },
+          { tab: 'dashboard',     icon: <Home           size={20} />, label: 'Dashboard' },
           { tab: 'inspections',   icon: <ClipboardCheck size={20} />, label: 'Assigned Inspections',
-            count: mockInspections.filter(i => i.status !== 'report_submitted').length },
-          { tab: 'history',       icon: <FileText      size={20} />, label: 'Inspection History' },
-          { tab: 'notifications', icon: <Bell          size={20} />, label: 'Notifications',
-            count: notifications.filter(n => !n.isRead).length, countColor: 'bg-red-500' },
+            count: activeInspections.length || undefined },
+          { tab: 'history',       icon: <FileText       size={20} />, label: 'Inspection History' },
+          { tab: 'notifications', icon: <Bell           size={20} />, label: 'Notifications',
+            count: notifications.filter(n => !n.isRead).length || undefined, countColor: 'bg-red-500' },
         ].map(({ tab, icon, label, count, countColor }) => (
           <button
             key={tab}
@@ -352,10 +417,10 @@ export default function InspectorDashboardPage() {
               {/* Stats */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
-                  { label: 'Scheduled',       value: mockInspections.filter(i => i.status === 'scheduled').length,        sub: 'Upcoming inspections', icon: <Calendar    className="text-blue-500"   size={24} /> },
-                  { label: 'In Progress',     value: mockInspections.filter(i => i.status === 'in_progress').length,      sub: 'Currently ongoing',    icon: <Clock       className="text-purple-500" size={24} /> },
-                  { label: 'Pending Reports', value: mockInspections.filter(i => i.status === 'completed').length,        sub: 'Need submission',      icon: <AlertCircle className="text-orange-500" size={24} /> },
-                  { label: 'Completed',       value: mockInspections.filter(i => i.status === 'report_submitted').length, sub: 'This month',           icon: <CheckCircle className="text-green-500"  size={24} /> },
+                  { label: 'Scheduled',       value: inspections.filter(i => i.status === 'scheduled').length,        sub: 'Upcoming inspections', icon: <Calendar    className="text-blue-500"   size={24} /> },
+                  { label: 'In Progress',     value: inspections.filter(i => i.status === 'in_progress').length,      sub: 'Currently ongoing',    icon: <Clock       className="text-purple-500" size={24} /> },
+                  { label: 'Pending Reports', value: inspections.filter(i => i.status === 'completed').length,        sub: 'Need submission',      icon: <AlertCircle className="text-orange-500" size={24} /> },
+                  { label: 'Completed',       value: completedInspections.length,                                     sub: 'Reports submitted',    icon: <CheckCircle className="text-green-500"  size={24} /> },
                 ].map((stat) => (
                   <div key={stat.label} className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all">
                     <div className="flex items-center justify-between mb-2">
@@ -376,37 +441,47 @@ export default function InspectorDashboardPage() {
                       <h2 className="text-xl font-bold text-gray-900">Upcoming Inspections</h2>
                       <button onClick={() => setActiveTab('inspections')} className="text-sm text-blue-600 hover:text-blue-700 font-semibold">View All</button>
                     </div>
-                    <div className="space-y-4">
-                      {mockInspections.filter(i => i.status === 'scheduled' || i.status === 'in_progress').slice(0, 3).map((inspection) => {
-                        const sc = getStatusConfig(inspection.status);
-                        const Icon = sc.icon;
-                        return (
-                          <div key={inspection.id}
-                            onClick={() => { setSelectedInspection(inspection); setActiveTab('inspections'); }}
-                            className="p-4 bg-gray-50 rounded-xl border border-gray-200 hover:shadow-md transition-all cursor-pointer"
-                          >
-                            <div className="flex gap-4">
-                              <div className="w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden">
-                                <img src={inspection.propertyImage} alt={inspection.propertyTitle} className="w-full h-full object-cover"
-                                  onError={(e) => ((e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg')} />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-start justify-between mb-2">
-                                  <h3 className="font-bold text-gray-900">{inspection.propertyTitle}</h3>
-                                  <span className={`ml-3 inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full border ${sc.color}`}>
-                                    <Icon size={14} />{sc.label}
-                                  </span>
+                    {inspectionsLoading ? (
+                      <div className="flex justify-center py-8"><Clock className="animate-spin text-blue-600" size={28} /></div>
+                    ) : activeInspections.filter(i => i.status === 'scheduled' || i.status === 'in_progress').length === 0 ? (
+                      <p className="text-gray-500 text-sm text-center py-8">No upcoming inspections.</p>
+                    ) : (
+                      <div className="space-y-4">
+                        {activeInspections.filter(i => i.status === 'scheduled' || i.status === 'in_progress').slice(0, 3).map((inspection) => {
+                          const sc = getStatusConfig(inspection.status);
+                          const Icon = sc.icon;
+                          return (
+                            <div key={inspection.id}
+                              onClick={() => { setSelectedInspection(inspection); setActiveTab('inspections'); }}
+                              className="p-4 bg-gray-50 rounded-xl border border-gray-200 hover:shadow-md transition-all cursor-pointer"
+                            >
+                              <div className="flex gap-4">
+                                <div className="w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gray-200">
+                                  {inspection.propertyImage ? (
+                                    <img src={inspection.propertyImage} alt={inspection.propertyTitle} className="w-full h-full object-cover"
+                                      onError={(e) => ((e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg')} />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-400"><MapPin size={24} /></div>
+                                  )}
                                 </div>
-                                <div className="flex items-center gap-1 text-sm text-gray-600">
-                                  <Calendar size={14} />
-                                  <span>{inspection.scheduledDate} at {inspection.scheduledTime}</span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-start justify-between mb-2">
+                                    <h3 className="font-bold text-gray-900">{inspection.propertyTitle}</h3>
+                                    <span className={`ml-3 inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full border ${sc.color}`}>
+                                      <Icon size={14} />{sc.label}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1 text-sm text-gray-600">
+                                    <Calendar size={14} />
+                                    <span>{inspection.scheduledDate} at {inspection.scheduledTime}</span>
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -422,14 +497,11 @@ export default function InspectorDashboardPage() {
                     {notifications.slice(0, 5).map((n) => (
                       <div key={n.notificationId} onClick={() => handleMarkAsRead(n.notificationId)} className={`p-3 rounded-xl border cursor-pointer ${n.isRead ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
                         <div className="flex items-start gap-3">
-                          <div className={`p-2 rounded-lg ${n.type === 'InspectionUpdate' ? 'bg-blue-100' : n.type === 'ListingStatus' ? 'bg-green-100' : n.type === 'AccountDecision' ? 'bg-green-100' : n.type === 'DisputeUpdate' ? 'bg-red-100' : n.type === 'MessageReceived' ? 'bg-gray-100' : 'bg-orange-100'}`}>
-                            {n.type === 'InspectionUpdate'  && <ClipboardCheck size={16} className="text-blue-600" />}
-                            {n.type === 'ListingStatus'     && <CheckCircle    size={16} className="text-green-600" />}
-                            {n.type === 'AccountDecision'   && <CheckCircle    size={16} className="text-green-600" />}
-                            {n.type === 'DisputeUpdate'     && <AlertCircle    size={16} className="text-red-600" />}
-                            {n.type === 'MessageReceived'   && <Bell           size={16} className="text-gray-600" />}
-                            {n.type === 'TransactionClosed' && <CheckCircle    size={16} className="text-blue-600" />}
-                            {n.type === 'OfferResponse'     && <FileText       size={16} className="text-orange-600" />}
+                          <div className={`p-2 rounded-lg ${n.type === 'InspectionUpdate' ? 'bg-blue-100' : n.type === 'AccountDecision' ? 'bg-green-100' : n.type === 'DisputeUpdate' ? 'bg-red-100' : 'bg-gray-100'}`}>
+                            {n.type === 'InspectionUpdate' && <ClipboardCheck size={16} className="text-blue-600" />}
+                            {n.type === 'AccountDecision'  && <CheckCircle    size={16} className="text-green-600" />}
+                            {n.type === 'DisputeUpdate'    && <AlertCircle    size={16} className="text-red-600" />}
+                            {(n.type !== 'InspectionUpdate' && n.type !== 'AccountDecision' && n.type !== 'DisputeUpdate') && <Bell size={16} className="text-gray-600" />}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold text-gray-900 mb-1">{n.title}</p>
@@ -440,6 +512,9 @@ export default function InspectorDashboardPage() {
                         </div>
                       </div>
                     ))}
+                    {notifications.length === 0 && (
+                      <p className="text-gray-500 text-sm text-center py-4">No notifications yet.</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -449,28 +524,42 @@ export default function InspectorDashboardPage() {
           {/* ── Assigned Inspections List ── */}
           {activeTab === 'inspections' && !selectedInspection && !showReportForm && !showVerdictForm && (
             <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
-              <p className="text-gray-700 font-semibold mb-6">
-                You have {mockInspections.filter(i => i.status !== 'report_submitted').length} active inspections
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {mockInspections.filter(i => i.status !== 'report_submitted').map((inspection) => (
-                  <InspectionCard
-                    key={inspection.id}
-                    id={inspection.id}
-                    propertyTitle={inspection.propertyTitle}
-                    propertyAddress={inspection.propertyAddress}
-                    propertyImage={inspection.propertyImage}
-                    bedrooms={inspection.bedrooms}
-                    bathrooms={inspection.bathrooms}
-                    area={inspection.area}
-                    scheduledDate={inspection.scheduledDate}
-                    scheduledTime={inspection.scheduledTime}
-                    status={inspection.status}
-                    agentName={inspection.agentName}
-                    onClick={() => setSelectedInspection(inspection)}
-                  />
-                ))}
-              </div>
+              {inspectionsLoading ? (
+                <div className="flex justify-center py-16"><Clock className="animate-spin text-blue-600" size={36} /></div>
+              ) : inspectionsError ? (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 flex items-center justify-between">
+                  <span>{inspectionsError}</span>
+                  <button onClick={loadInspections} className="ml-3 underline font-semibold">Retry</button>
+                </div>
+              ) : activeInspections.length === 0 ? (
+                <div className="text-center py-16">
+                  <ClipboardCheck className="mx-auto text-gray-300 mb-4" size={48} />
+                  <p className="text-gray-600 font-semibold">No active inspections</p>
+                  <p className="text-sm text-gray-500">You have no inspections assigned at the moment.</p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-gray-700 font-semibold mb-6">
+                    You have {activeInspections.length} active inspection{activeInspections.length !== 1 ? 's' : ''}
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {activeInspections.map((inspection) => (
+                      <InspectionCard
+                        key={inspection.id}
+                        id={inspection.id}
+                        propertyTitle={inspection.propertyTitle}
+                        propertyAddress={inspection.propertyAddress}
+                        propertyImage={inspection.propertyImage}
+                        scheduledDate={inspection.scheduledDate}
+                        scheduledTime={inspection.scheduledTime}
+                        status={inspection.status}
+                        agentName={inspection.agentName}
+                        onClick={() => setSelectedInspection(inspection)}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -498,11 +587,9 @@ export default function InspectorDashboardPage() {
                       );
                     })()}
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="flex items-center gap-2 text-gray-700"><Bed      size={18} className="text-blue-600" /><span className="text-sm font-semibold">{selectedInspection.bedrooms} Bedrooms</span></div>
-                    <div className="flex items-center gap-2 text-gray-700"><Bath     size={18} className="text-blue-600" /><span className="text-sm font-semibold">{selectedInspection.bathrooms} Bathrooms</span></div>
-                    <div className="flex items-center gap-2 text-gray-700"><Square   size={18} className="text-blue-600" /><span className="text-sm font-semibold">{selectedInspection.area} sq ft</span></div>
-                    <div className="flex items-center gap-2 text-gray-700"><Calendar size={18} className="text-blue-600" /><span className="text-sm font-semibold">{selectedInspection.scheduledDate}</span></div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center gap-2 text-gray-700"><Calendar size={18} className="text-blue-600" /><span className="text-sm font-semibold">Scheduled: {selectedInspection.scheduledDate} at {selectedInspection.scheduledTime}</span></div>
+                    <div className="flex items-center gap-2 text-gray-700"><User size={18} className="text-blue-600" /><span className="text-sm font-semibold">Owner: {selectedInspection.ownerName}</span></div>
                   </div>
                 </div>
 
@@ -510,9 +597,8 @@ export default function InspectorDashboardPage() {
                 <div className="mb-6 p-6 bg-blue-50 border border-blue-200 rounded-xl">
                   <h3 className="text-lg font-bold text-blue-900 mb-4">Agent Contact Information</h3>
                   <div className="space-y-2">
-                    <div className="flex items-center gap-3"><User  className="text-blue-600" size={18} /><span className="text-sm font-semibold text-gray-900">{selectedInspection.agentName}</span></div>
-                    <div className="flex items-center gap-3"><Phone className="text-blue-600" size={18} /><span className="text-sm text-gray-700">{selectedInspection.agentPhone}</span></div>
-                    <div className="flex items-center gap-3"><Mail  className="text-blue-600" size={18} /><span className="text-sm text-gray-700">{selectedInspection.agentEmail}</span></div>
+                    <div className="flex items-center gap-3"><User className="text-blue-600" size={18} /><span className="text-sm font-semibold text-gray-900">{selectedInspection.agentName}</span></div>
+                    <div className="flex items-center gap-3"><Mail className="text-blue-600" size={18} /><span className="text-sm text-gray-700">{selectedInspection.agentEmail}</span></div>
                   </div>
                 </div>
 
@@ -557,20 +643,26 @@ export default function InspectorDashboardPage() {
                         <CheckCircle className="text-green-600" size={24} />
                         <p className="text-lg font-bold text-green-900">Report Submitted Successfully</p>
                       </div>
-                      <p className="text-sm text-green-800 mb-4">Your inspection report and final verdict have been submitted and locked.</p>
-                      <button className="px-6 py-3 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-700 transition-colors flex items-center gap-2">
-                        <Eye size={18} /> View Submitted Report
-                      </button>
+                      <p className="text-sm text-green-800 mb-3">Your inspection report and final verdict have been submitted and locked.</p>
+                      {selectedInspection.finalVerdict && (() => {
+                        const vc = getVerdictConfig(selectedInspection.finalVerdict!);
+                        const Icon = vc.icon;
+                        return (
+                          <span className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl border ${vc.color}`}>
+                            <Icon size={16} />{vc.label}
+                          </span>
+                        );
+                      })()}
                     </div>
-                  ) : report.locked ? (
+                  ) : (selectedInspection.hasReport || report.locked) ? (
                     <div className="p-6 bg-yellow-50 border-2 border-yellow-200 rounded-xl">
                       <div className="flex items-center gap-3 mb-3">
                         <AlertCircle className="text-yellow-600" size={24} />
                         <p className="text-lg font-bold text-yellow-900">Report Pending Final Verdict</p>
                       </div>
                       <p className="text-sm text-yellow-800 mb-4">Your report has been submitted. Please submit the final verdict.</p>
-                      <button onClick={() => setShowVerdictForm(true)}
-                        className="px-6 py-3 bg-yellow-600 text-white font-semibold rounded-xl hover:bg-yellow-700 transition-colors flex items-center gap-2">
+                      <button onClick={() => setShowVerdictForm(true)} disabled={verdictSubmitting}
+                        className="px-6 py-3 bg-yellow-600 text-white font-semibold rounded-xl hover:bg-yellow-700 transition-colors flex items-center gap-2 disabled:opacity-50">
                         <Send size={18} /> Submit Final Verdict
                       </button>
                     </div>
@@ -584,7 +676,7 @@ export default function InspectorDashboardPage() {
                         Complete findings for <strong>Structural Integrity</strong>, <strong>Plumbing</strong>, <strong>Electrical</strong>, and <strong>Safety</strong>.
                       </p>
                       <button
-                        onClick={() => { setReport((prev) => ({ ...prev, inspectionId: selectedInspection.id })); setShowReportForm(true); }}
+                        onClick={() => { setReport(prev => ({ ...prev, inspectionId: selectedInspection.id })); setShowReportForm(true); }}
                         className="w-full py-4 bg-blue-600 text-white font-bold text-lg rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 shadow-lg"
                       >
                         <FileText size={22} /> Create Inspection Report
@@ -601,8 +693,9 @@ export default function InspectorDashboardPage() {
                       <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl">
                         <p className="text-sm text-purple-800">Click below to mark as <strong>In Progress</strong> when you arrive at the property.</p>
                       </div>
-                      <button onClick={() => handleUpdateStatus(selectedInspection, 'in_progress')} className="w-full py-4 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2">
-                        <Clock size={20} /> Mark as In Progress
+                      <button onClick={() => handleUpdateStatus(selectedInspection, 'in_progress')} disabled={statusUpdating}
+                        className="w-full py-4 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                        <Clock size={20} /> {statusUpdating ? 'Updating…' : 'Mark as In Progress'}
                       </button>
                     </>
                   )}
@@ -611,8 +704,9 @@ export default function InspectorDashboardPage() {
                       <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
                         <p className="text-sm text-orange-800">Mark as <strong>Completed</strong> once you finish the on-site inspection.</p>
                       </div>
-                      <button onClick={() => handleUpdateStatus(selectedInspection, 'completed')} className="w-full py-4 bg-orange-600 text-white font-bold rounded-xl hover:bg-orange-700 transition-colors flex items-center justify-center gap-2">
-                        <CheckCircle size={20} /> Mark as Completed
+                      <button onClick={() => handleUpdateStatus(selectedInspection, 'completed')} disabled={statusUpdating}
+                        className="w-full py-4 bg-orange-600 text-white font-bold rounded-xl hover:bg-orange-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                        <CheckCircle size={20} /> {statusUpdating ? 'Updating…' : 'Mark as Completed'}
                       </button>
                     </>
                   )}
@@ -654,47 +748,58 @@ export default function InspectorDashboardPage() {
           {/* ── History Tab ── */}
           {activeTab === 'history' && (
             <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
-              <p className="text-gray-700 font-semibold mb-6">
-                You have completed {mockInspections.filter(i => i.status === 'report_submitted').length} inspection(s)
-              </p>
-              <div className="space-y-4">
-                {mockInspections.filter(i => i.status === 'report_submitted').map((inspection) => (
-                  <div key={inspection.id} className="p-6 bg-gray-50 rounded-2xl border border-gray-200">
-                    <div className="flex gap-6 mb-4">
-                      <div className="w-32 h-32 flex-shrink-0 rounded-xl overflow-hidden">
-                        <img src={inspection.propertyImage} alt={inspection.propertyTitle} className="w-full h-full object-cover"
-                          onError={(e) => ((e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg')} />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <h3 className="text-xl font-bold text-gray-900 mb-2">{inspection.propertyTitle}</h3>
-                            <p className="text-sm text-gray-600 mb-2">{inspection.propertyAddress}</p>
-                            <div className="flex items-center gap-4 text-sm text-gray-600">
-                              <div className="flex items-center gap-1"><Calendar size={14} /><span>Inspected: {inspection.scheduledDate}</span></div>
-                              <div className="flex items-center gap-1"><User size={14} /><span>Agent: {inspection.agentName}</span></div>
+              {inspectionsLoading ? (
+                <div className="flex justify-center py-16"><Clock className="animate-spin text-blue-600" size={36} /></div>
+              ) : completedInspections.length === 0 ? (
+                <div className="text-center py-16">
+                  <Eye className="mx-auto text-gray-300 mb-4" size={48} />
+                  <p className="text-gray-600 font-semibold">No completed inspections yet</p>
+                  <p className="text-sm text-gray-500">Submitted reports will appear here.</p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-gray-700 font-semibold mb-6">
+                    {completedInspections.length} completed inspection{completedInspections.length !== 1 ? 's' : ''}
+                  </p>
+                  <div className="space-y-4">
+                    {completedInspections.map((inspection) => (
+                      <div key={inspection.id} className="p-6 bg-gray-50 rounded-2xl border border-gray-200">
+                        <div className="flex gap-6 mb-4">
+                          <div className="w-32 h-32 flex-shrink-0 rounded-xl overflow-hidden bg-gray-200">
+                            {inspection.propertyImage ? (
+                              <img src={inspection.propertyImage} alt={inspection.propertyTitle} className="w-full h-full object-cover"
+                                onError={(e) => ((e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg')} />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-gray-400"><MapPin size={32} /></div>
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between mb-3">
+                              <div>
+                                <h3 className="text-xl font-bold text-gray-900 mb-2">{inspection.propertyTitle}</h3>
+                                <p className="text-sm text-gray-600 mb-2">{inspection.propertyAddress}</p>
+                                <div className="flex items-center gap-4 text-sm text-gray-600">
+                                  <div className="flex items-center gap-1"><Calendar size={14} /><span>Inspected: {inspection.scheduledDate}</span></div>
+                                  <div className="flex items-center gap-1"><User size={14} /><span>Agent: {inspection.agentName}</span></div>
+                                </div>
+                              </div>
+                              {inspection.finalVerdict && (() => {
+                                const vc = getVerdictConfig(inspection.finalVerdict!);
+                                const Icon = vc.icon;
+                                return (
+                                  <span className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl border ${vc.color}`}>
+                                    <Icon size={16} />{vc.label}
+                                  </span>
+                                );
+                              })()}
                             </div>
                           </div>
-                          {inspection.finalVerdict && (() => {
-                            const vc = getVerdictConfig(inspection.finalVerdict);
-                            const Icon = vc.icon;
-                            return (
-                              <span className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl border ${vc.color}`}>
-                                <Icon size={16} />{vc.label}
-                              </span>
-                            );
-                          })()}
                         </div>
                       </div>
-                    </div>
-                    <div className="pt-4 border-t border-gray-200">
-                      <button className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2">
-                        <Eye size={18} /> View Full Report
-                      </button>
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              )}
             </div>
           )}
 
@@ -703,20 +808,17 @@ export default function InspectorDashboardPage() {
             <div className="max-w-4xl mx-auto">
               <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
                 <p className="text-gray-700 font-semibold mb-6">
-                  You have {notifications.filter(n => !n.isRead).length} unread notifications
+                  {notifications.filter(n => !n.isRead).length} unread notification{notifications.filter(n => !n.isRead).length !== 1 ? 's' : ''}
                 </p>
                 <div className="space-y-3">
                   {notifications.map((n) => (
                     <div key={n.notificationId} onClick={() => handleMarkAsRead(n.notificationId)} className={`p-5 rounded-xl border transition-all cursor-pointer ${n.isRead ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
                       <div className="flex items-start gap-4">
-                        <div className={`p-3 rounded-lg ${n.type === 'InspectionUpdate' ? 'bg-blue-100' : n.type === 'ListingStatus' ? 'bg-green-100' : n.type === 'AccountDecision' ? 'bg-green-100' : n.type === 'DisputeUpdate' ? 'bg-red-100' : n.type === 'MessageReceived' ? 'bg-gray-100' : 'bg-orange-100'}`}>
-                          {n.type === 'InspectionUpdate'  && <ClipboardCheck size={16} className="text-blue-600" />}
-                          {n.type === 'ListingStatus'     && <CheckCircle    size={16} className="text-green-600" />}
-                          {n.type === 'AccountDecision'   && <CheckCircle    size={16} className="text-green-600" />}
-                          {n.type === 'DisputeUpdate'     && <AlertCircle    size={16} className="text-red-600" />}
-                          {n.type === 'MessageReceived'   && <Bell           size={16} className="text-gray-600" />}
-                          {n.type === 'TransactionClosed' && <CheckCircle    size={16} className="text-blue-600" />}
-                          {n.type === 'OfferResponse'     && <FileText       size={16} className="text-orange-600" />}
+                        <div className={`p-3 rounded-lg ${n.type === 'InspectionUpdate' ? 'bg-blue-100' : n.type === 'AccountDecision' ? 'bg-green-100' : n.type === 'DisputeUpdate' ? 'bg-red-100' : 'bg-gray-100'}`}>
+                          {n.type === 'InspectionUpdate' && <ClipboardCheck size={16} className="text-blue-600" />}
+                          {n.type === 'AccountDecision'  && <CheckCircle    size={16} className="text-green-600" />}
+                          {n.type === 'DisputeUpdate'    && <AlertCircle    size={16} className="text-red-600" />}
+                          {(n.type !== 'InspectionUpdate' && n.type !== 'AccountDecision' && n.type !== 'DisputeUpdate') && <Bell size={16} className="text-gray-600" />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-lg font-bold text-gray-900 mb-2">{n.title}</p>
@@ -727,6 +829,9 @@ export default function InspectorDashboardPage() {
                       </div>
                     </div>
                   ))}
+                  {notifications.length === 0 && (
+                    <p className="text-gray-500 text-center py-8">No notifications yet.</p>
+                  )}
                 </div>
               </div>
             </div>

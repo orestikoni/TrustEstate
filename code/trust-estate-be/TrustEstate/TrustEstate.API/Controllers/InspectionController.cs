@@ -68,6 +68,16 @@ public sealed class InspectionController : ControllerBase
 
     // ── Property Inspector ────────────────────────────────────────────────────
 
+    [HttpGet("my")]
+    [Authorize(Roles = "PropertyInspector")]
+    [ProducesResponseType(typeof(IEnumerable<MyInspectionDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMyInspections(CancellationToken ct)
+    {
+        var inspectorId = GetCurrentUserId();
+        var result = await _inspections.GetMyInspectionsAsync(inspectorId, ct);
+        return Ok(result);
+    }
+
     [HttpPut("{inspectionId:int}/status")]
     [Authorize(Roles = "PropertyInspector")]
     [ProducesResponseType(typeof(InspectionDto), StatusCodes.Status200OK)]

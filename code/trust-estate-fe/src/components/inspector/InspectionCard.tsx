@@ -9,10 +9,10 @@ interface InspectionCardProps {
   id: number;
   propertyTitle: string;
   propertyAddress: string;
-  propertyImage: string;
-  bedrooms: number;
-  bathrooms: number;
-  area: number;
+  propertyImage: string | null;
+  bedrooms?: number;
+  bathrooms?: number;
+  area?: number;
   scheduledDate: string;
   scheduledTime: string;
   status: InspectionStatus;
@@ -54,13 +54,19 @@ export const InspectionCard: React.FC<InspectionCardProps> = ({
       className="bg-white rounded-2xl overflow-hidden border border-gray-200 hover:shadow-lg transition-all cursor-pointer"
     >
       {/* Property Image */}
-      <div className="relative h-48 overflow-hidden">
-        <img
-          src={propertyImage}
-          alt={propertyTitle}
-          className="w-full h-full object-cover"
-          onError={(e) => ((e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg')}
-        />
+      <div className="relative h-48 overflow-hidden bg-gray-100">
+        {propertyImage ? (
+          <img
+            src={propertyImage}
+            alt={propertyTitle}
+            className="w-full h-full object-cover"
+            onError={(e) => ((e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg')}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-gray-300">
+            <MapPin size={48} />
+          </div>
+        )}
         <div className="absolute top-3 right-3">
           <span className={`px-3 py-1.5 text-xs font-bold rounded-xl border ${statusConfig.color}`}>
             {statusConfig.label}
@@ -86,20 +92,28 @@ export const InspectionCard: React.FC<InspectionCardProps> = ({
         </div>
 
         {/* Property Stats */}
-        <div className="flex items-center justify-between py-3 border-t border-b border-gray-200 mb-4">
-          <div className="flex items-center gap-1.5 text-gray-700">
-            <Bed size={18} className="text-blue-600" />
-            <span className="text-sm font-semibold">{bedrooms}</span>
+        {(bedrooms || bathrooms || area) ? (
+          <div className="flex items-center justify-between py-3 border-t border-b border-gray-200 mb-4">
+            {bedrooms !== undefined && (
+              <div className="flex items-center gap-1.5 text-gray-700">
+                <Bed size={18} className="text-blue-600" />
+                <span className="text-sm font-semibold">{bedrooms}</span>
+              </div>
+            )}
+            {bathrooms !== undefined && (
+              <div className="flex items-center gap-1.5 text-gray-700">
+                <Bath size={18} className="text-blue-600" />
+                <span className="text-sm font-semibold">{bathrooms}</span>
+              </div>
+            )}
+            {area !== undefined && (
+              <div className="flex items-center gap-1.5 text-gray-700">
+                <Square size={18} className="text-blue-600" />
+                <span className="text-sm font-semibold">{area.toLocaleString()} sqft</span>
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-1.5 text-gray-700">
-            <Bath size={18} className="text-blue-600" />
-            <span className="text-sm font-semibold">{bathrooms}</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-gray-700">
-            <Square size={18} className="text-blue-600" />
-            <span className="text-sm font-semibold">{area.toLocaleString()} sqft</span>
-          </div>
-        </div>
+        ) : <div className="py-3 border-t border-b border-gray-200 mb-4" />}
 
         {/* Inspection Details */}
         <div className="space-y-2 mb-4">
