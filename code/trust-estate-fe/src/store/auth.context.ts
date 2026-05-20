@@ -101,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     } finally {
       tokenStorage.clear();
       dispatch({ type: 'CLEAR_AUTH' });
-      router.replace('/login');
+      router.replace('/');
     }
   }, [router]);
 

@@ -64,7 +64,12 @@ async function request<T>(
     ...(options.headers ?? {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
-  const res = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers });
+  } catch {
+    throw new ApiRequestError(0, { message: 'Something went wrong. Please try again later.', statusCode: 0 });
+  }
 
   const isAuthEndpoint = endpoint.startsWith('/auth/');
   if (res.status === 401 && retry && !isAuthEndpoint) {
@@ -105,7 +110,7 @@ async function request<T>(
         errors: body.errors,
       };
     } catch {
-      apiError = { message: 'Unable to reach the server. Is the backend running?', statusCode: res.status };
+      apiError = { message: 'Something went wrong. Please try again later.', statusCode: res.status };
     }
     throw new ApiRequestError(res.status, apiError);
   }

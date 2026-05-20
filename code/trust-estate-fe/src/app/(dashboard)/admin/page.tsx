@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { adminService, type PendingVerification } from '@/services/admin.service';
+import { adminService, type PendingVerification, type AdminListing, type AdminUser } from '@/services/admin.service';
 import { notificationService, type ApiNotification, formatNotificationDate } from '@/services/notification.service';
 import { ApiRequestError } from '@/lib/api-client';
+import { useAuth } from '@/store/auth.context';
 import Link from 'next/link';
 import {
   Home,
@@ -60,34 +61,6 @@ import {
 import { ListingCard } from '@/components/admin/ListingCard';
 
 
-interface ManagedListing {
-  id: number;
-  title: string;
-  price: number;
-  location: string;
-  bedrooms: number;
-  bathrooms: number;
-  area: number;
-  image: string;
-  owner: string;
-  status: 'active' | 'flagged' | 'suspended' | 'removed';
-  views: number;
-  flagCount: number;
-}
-
-interface PlatformUser {
-  id: number;
-  name: string;
-  email: string;
-  phone: string;
-  role: 'buyer' | 'owner' | 'agent' | 'inspector';
-  status: 'active' | 'suspended' | 'deactivated' | 'pending_verification';
-  joinedDate: string;
-  lastActive: string;
-  listings?: number;
-  totalSpent?: number;
-  verificationStatus: 'verified' | 'pending' | 'rejected';
-}
 
 interface InspectionReportReview {
   id: number;
@@ -112,21 +85,6 @@ interface Dispute {
 }
 
 
-const managedListings: ManagedListing[] = [
-  { id: 1, title: 'Luxury Estate Mansion',       price: 4500000, location: 'Beverly Hills, CA', bedrooms: 7, bathrooms: 6, area: 8500, image: 'https://images.unsplash.com/photo-1505843795480-5cfb3c03f6ff?w=600&auto=format&fit=crop',  owner: 'Robert Chen',       status: 'active',    views: 1247, flagCount: 0 },
-  { id: 2, title: 'Modern City Apartment',       price: 875000,  location: 'New York, NY',       bedrooms: 3, bathrooms: 2, area: 2100, image: 'https://images.unsplash.com/photo-1635933036183-d1f250072745?w=600&auto=format&fit=crop',  owner: 'Jennifer Martinez', status: 'flagged',   views: 892,  flagCount: 3 },
-  { id: 3, title: 'Coastal Beach House',         price: 2300000, location: 'Malibu, CA',         bedrooms: 5, bathrooms: 4, area: 4200, image: 'https://images.unsplash.com/photo-1631607608345-598c70e0410b?w=600&auto=format&fit=crop',  owner: 'David Thompson',    status: 'active',    views: 2103, flagCount: 0 },
-  { id: 4, title: 'Suspicious Property Listing', price: 450000,  location: 'Unknown, CA',        bedrooms: 2, bathrooms: 1, area: 1200, image: 'https://images.unsplash.com/photo-1762575537664-0f2c7e0c7f48?w=600&auto=format&fit=crop',  owner: 'Unknown User',      status: 'suspended', views: 45,   flagCount: 12 },
-];
-
-const platformUsers: PlatformUser[] = [
-  { id: 1, name: 'John Doe',       email: 'john.doe@email.com',  phone: '+1 (555) 123-4567', role: 'buyer',     status: 'active',               joinedDate: '2024-01-15', lastActive: '2026-05-10', totalSpent: 1250000, verificationStatus: 'verified' },
-  { id: 2, name: 'Michael Wilson', email: 'michael.w@email.com', phone: '+1 (555) 234-5678', role: 'owner',     status: 'active',               joinedDate: '2024-02-01', lastActive: '2026-05-09', listings: 4,         verificationStatus: 'verified' },
-  { id: 3, name: 'Sarah Anderson', email: 'sarah.a@email.com',   phone: '+1 (555) 345-6789', role: 'agent',     status: 'active',               joinedDate: '2024-01-20', lastActive: '2026-05-10', listings: 8,         verificationStatus: 'verified' },
-  { id: 4, name: 'Emily Chen',     email: 'emily.c@email.com',   phone: '+1 (555) 456-7890', role: 'buyer',     status: 'active',               joinedDate: '2024-03-05', lastActive: '2026-05-08',                      verificationStatus: 'verified' },
-  { id: 5, name: 'David Miller',   email: 'david.m@email.com',   phone: '+1 (555) 567-8901', role: 'owner',     status: 'pending_verification', joinedDate: '2024-03-12', lastActive: '2026-05-07',                      verificationStatus: 'pending' },
-  { id: 6, name: 'Lisa Thompson',  email: 'lisa.t@email.com',    phone: '+1 (555) 678-9012', role: 'agent',     status: 'suspended',            joinedDate: '2024-02-15', lastActive: '2026-04-28', listings: 3,         verificationStatus: 'verified' },
-];
 
 const inspectionReports: InspectionReportReview[] = [
   { id: 1, propertyTitle: 'Luxury Estate Mansion', inspectorName: 'Mark Johnson', submittedDate: '2026-05-08', verdict: 'passed',                 flaggedBy: null,                       status: 'active' },
@@ -166,24 +124,18 @@ const revenueData = [
   { month: 'Jun', revenue: 1020000 },
 ];
 
-const userDistributionData = [
-  { name: 'Buyers',     value: platformUsers.filter(u => u.role === 'buyer').length,     color: '#3b82f6' },
-  { name: 'Owners',     value: platformUsers.filter(u => u.role === 'owner').length,     color: '#10b981' },
-  { name: 'Agents',     value: platformUsers.filter(u => u.role === 'agent').length,     color: '#8b5cf6' },
-  { name: 'Inspectors', value: platformUsers.filter(u => u.role === 'inspector').length, color: '#f59e0b' },
-].filter(item => item.value > 0);
-
 export default function AdminDashboardPage() {
+  const { logout } = useAuth();
   const [activeTab, setActiveTab] = useState<
     'dashboard' | 'verifications' | 'listings' | 'users' | 'reports' | 'disputes' | 'notifications'
   >('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<PlatformUser | null>(null);
-  const [selectedListing, setSelectedListing] = useState<ManagedListing | null>(null);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [selectedListing, setSelectedListing] = useState<AdminListing | null>(null);
   const [selectedReport, setSelectedReport] = useState<InspectionReportReview | null>(null);
   const [selectedDispute, setSelectedDispute] = useState<Dispute | null>(null);
   const [actionReason, setActionReason] = useState('');
-  const [listingFilter, setListingFilter] = useState<'all' | 'active' | 'flagged' | 'suspended'>('all');
+  const [listingFilter, setListingFilter] = useState<'all' | 'active' | 'pending' | 'suspended'>('all');
   const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'buyer' | 'owner' | 'agent' | 'inspector'>('all');
   const [reportFilter, setReportFilter] = useState<'all' | 'active' | 'flagged'>('all');
   const [disputeFilter, setDisputeFilter] = useState<'all' | 'open' | 'investigating' | 'resolved'>('all');
@@ -263,24 +215,114 @@ export default function AdminDashboardPage() {
     } catch { /* silently ignore */ }
   }, []);
 
+  // ── Listings API state ────────────────────────────────────────────────────
+  const [listings, setListings] = useState<AdminListing[]>([]);
+  const [listingsLoading, setListingsLoading] = useState(false);
+  const [listingsError, setListingsError] = useState<string | null>(null);
+  const [listingActionLoading, setListingActionLoading] = useState(false);
+
+  const loadListings = useCallback(async () => {
+    setListingsLoading(true);
+    setListingsError(null);
+    try {
+      const data = await adminService.getAllListings();
+      setListings(data);
+    } catch (err) {
+      setListingsError(
+        err instanceof ApiRequestError ? err.apiError.message : 'Failed to load listings.',
+      );
+    } finally {
+      setListingsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'listings' || activeTab === 'dashboard') loadListings();
+  }, [activeTab, loadListings]);
+
+  // ── Users API state ───────────────────────────────────────────────────────
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState<string | null>(null);
+
+  const loadUsers = useCallback(async () => {
+    setUsersLoading(true);
+    setUsersError(null);
+    try {
+      const data = await adminService.getUsers();
+      setUsers(data);
+    } catch (err) {
+      setUsersError(
+        err instanceof ApiRequestError ? err.apiError.message : 'Failed to load users.',
+      );
+    } finally {
+      setUsersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
+
+  const handleSuspendListing = useCallback(async (listing: AdminListing) => {
+    if (!actionReason.trim()) return;
+    setListingActionLoading(true);
+    try {
+      await adminService.suspendListing(listing.listingId, actionReason);
+      setListings((prev) =>
+        prev.map((l) => l.listingId === listing.listingId ? { ...l, status: 'Suspended' as const, moderationNotes: actionReason } : l),
+      );
+      setSelectedListing(null);
+      setActionReason('');
+    } catch (err) {
+      alert(err instanceof ApiRequestError ? err.apiError.message : 'Failed to suspend listing.');
+    } finally {
+      setListingActionLoading(false);
+    }
+  }, [actionReason]);
+
+  const handleRemoveListing = useCallback(async (listing: AdminListing) => {
+    if (!actionReason.trim()) return;
+    setListingActionLoading(true);
+    try {
+      await adminService.removeListing(listing.listingId, actionReason);
+      setListings((prev) => prev.filter((l) => l.listingId !== listing.listingId));
+      setSelectedListing(null);
+      setActionReason('');
+    } catch (err) {
+      alert(err instanceof ApiRequestError ? err.apiError.message : 'Failed to remove listing.');
+    } finally {
+      setListingActionLoading(false);
+    }
+  }, [actionReason]);
+
+  const getFilteredListings = () => {
+    if (listingFilter === 'all') return listings;
+    if (listingFilter === 'active') return listings.filter((l) => l.status === 'Active');
+    if (listingFilter === 'suspended') return listings.filter((l) => l.status === 'Suspended');
+    if (listingFilter === 'pending') return listings.filter((l) => l.status === 'PendingAgentReview' || l.status === 'CorrectionsRequested');
+    return listings;
+  };
+
   const formatPrice = (price: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(price);
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': case 'approved':   return 'bg-green-100 text-green-700 border-green-200';
-      case 'pending': case 'reviewing': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case 'suspended': case 'rejected':return 'bg-red-100 text-red-700 border-red-200';
-      default:                          return 'bg-gray-100 text-gray-700 border-gray-200';
+    switch (status.toLowerCase()) {
+      case 'active':                       return 'bg-green-100 text-green-700 border-green-200';
+      case 'pending':                      return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+      case 'suspended': case 'rejected':   return 'bg-red-100 text-red-700 border-red-200';
+      default:                             return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
 
   const getRoleColor = (role: string) => {
-    switch (role) {
-      case 'buyer':     return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'owner':     return 'bg-green-100 text-green-700 border-green-200';
-      case 'agent':     return 'bg-purple-100 text-purple-700 border-purple-200';
-      default:          return 'bg-gray-100 text-gray-700 border-gray-200';
+    switch (role.toLowerCase()) {
+      case 'buyer':              return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'owner':              return 'bg-green-100 text-green-700 border-green-200';
+      case 'agent':              return 'bg-purple-100 text-purple-700 border-purple-200';
+      case 'propertyinspector':  return 'bg-amber-100 text-amber-700 border-amber-200';
+      default:                   return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
 
@@ -301,11 +343,19 @@ export default function AdminDashboardPage() {
     setActionReason('');
   };
 
-  const getFilteredListings = () =>
-    listingFilter === 'all' ? managedListings : managedListings.filter(l => l.status === listingFilter);
+  const getFilteredUsers = () => {
+    if (userRoleFilter === 'all') return users;
+    const target = userRoleFilter === 'inspector' ? 'PropertyInspector'
+      : userRoleFilter.charAt(0).toUpperCase() + userRoleFilter.slice(1);
+    return users.filter(u => u.role === target);
+  };
 
-  const getFilteredUsers = () =>
-    userRoleFilter === 'all' ? platformUsers : platformUsers.filter(u => u.role === userRoleFilter);
+  const userDistributionData = [
+    { name: 'Buyers',     value: users.filter(u => u.role === 'Buyer').length,              color: '#3b82f6' },
+    { name: 'Owners',     value: users.filter(u => u.role === 'Owner').length,              color: '#10b981' },
+    { name: 'Agents',     value: users.filter(u => u.role === 'Agent').length,              color: '#8b5cf6' },
+    { name: 'Inspectors', value: users.filter(u => u.role === 'PropertyInspector').length,  color: '#f59e0b' },
+  ].filter(item => item.value > 0);
 
   const getFilteredReports = () =>
     reportFilter === 'all' ? inspectionReports : inspectionReports.filter(r => r.status === reportFilter);
@@ -347,9 +397,9 @@ export default function AdminDashboardPage() {
           { tab: 'verifications', icon: <UserCheck      size={20} />, label: 'Verifications',
             count: pendingVerifications.length, countColor: 'bg-orange-600' },
           { tab: 'listings',      icon: <Building       size={20} />, label: 'Listings',
-            count: managedListings.filter(l => l.status === 'flagged').length, countColor: 'bg-red-600' },
+            count: listings.filter(l => l.status === 'Suspended').length || undefined, countColor: 'bg-red-600' },
           { tab: 'users',         icon: <Users          size={20} />, label: 'Users',
-            count: platformUsers.length },
+            count: users.length },
           { tab: 'reports',       icon: <ClipboardCheck size={20} />, label: 'Reports',
             count: inspectionReports.filter(r => r.status === 'flagged').length, countColor: 'bg-orange-600' },
           { tab: 'disputes',      icon: <MessageSquare  size={20} />, label: 'Disputes',
@@ -382,7 +432,7 @@ export default function AdminDashboardPage() {
         <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-gray-200 hover:bg-gray-500/30 transition-all">
           <Settings size={20} /> Settings
         </button>
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-red-400 hover:bg-red-500/20 transition-all">
+        <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-red-400 hover:bg-red-500/20 transition-all">
           <LogOut size={20} /> Sign Out
         </button>
       </div>
@@ -446,8 +496,8 @@ export default function AdminDashboardPage() {
             <div className="space-y-8">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
-                  { label: 'Active Listings',       value: managedListings.filter(l => l.status === 'active').length,                              sub: '+8% this week',           subColor: 'text-green-600',  icon: <Building      className="text-blue-500"    size={24} /> },
-                  { label: 'Flagged Listings',       value: managedListings.filter(l => l.status === 'flagged' || l.status === 'suspended').length, sub: 'Requires attention',      subColor: 'text-orange-600', icon: <Flag          className="text-orange-500"  size={24} /> },
+                  { label: 'Active Listings',      value: listings.filter(l => l.status === 'Active').length,     sub: 'Currently live',          subColor: 'text-green-600',  icon: <Building      className="text-blue-500"    size={24} /> },
+                  { label: 'Suspended Listings',   value: listings.filter(l => l.status === 'Suspended').length, sub: 'Requires attention',      subColor: 'text-orange-600', icon: <Flag          className="text-orange-500"  size={24} /> },
                   { label: 'Pending Verifications',  value: pendingVerifications.length,                                                            sub: '72h review window',       subColor: 'text-purple-600', icon: <Clock         className="text-purple-500"  size={24} /> },
                   { label: 'Open Disputes',          value: disputes.filter(d => d.status === 'open' || d.status === 'investigating').length,       sub: 'Immediate action needed', subColor: 'text-red-600',    icon: <MessageSquare className="text-red-500"     size={24} /> },
                 ].map((stat) => (
@@ -534,8 +584,8 @@ export default function AdminDashboardPage() {
               {/* Quick Stats */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
-                  { gradient: 'from-blue-500 to-blue-600',     icon: <Activity      className="text-white/80 mb-4" size={32} />, label: 'Total Listings',      value: managedListings.length,                                                  sub: `${managedListings.filter(l => l.status === 'active').length} active` },
-                  { gradient: 'from-green-500 to-green-600',   icon: <UserCheck     className="text-white/80 mb-4" size={32} />, label: 'Verified Users',      value: platformUsers.filter(u => u.verificationStatus === 'verified').length,   sub: `Out of ${platformUsers.length} total` },
+                  { gradient: 'from-blue-500 to-blue-600',     icon: <Activity      className="text-white/80 mb-4" size={32} />, label: 'Total Listings',      value: listings.length,                                                         sub: `${listings.filter(l => l.status === 'Active').length} active` },
+                  { gradient: 'from-green-500 to-green-600',   icon: <UserCheck     className="text-white/80 mb-4" size={32} />, label: 'Verified Users',      value: users.filter(u => u.accountStatus === 'Active').length,                 sub: `Out of ${users.length} total` },
                   { gradient: 'from-orange-500 to-orange-600', icon: <ClipboardCheck className="text-white/80 mb-4" size={32} />, label: 'Inspection Reports', value: inspectionReports.length,                                                sub: `${inspectionReports.filter(r => r.status === 'flagged').length} flagged` },
                   { gradient: 'from-purple-500 to-purple-600', icon: <DollarSign    className="text-white/80 mb-4" size={32} />, label: 'Platform Revenue',    value: '$1.02M',                                                                sub: 'This month' },
                 ].map((stat) => (
@@ -630,36 +680,62 @@ export default function AdminDashboardPage() {
           {/* ── Listings Tab ── */}
           {activeTab === 'listings' && (
             <div className="space-y-6">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2 inline-flex gap-2">
-                {(['all', 'active', 'flagged', 'suspended'] as const).map((f) => (
-                  <button key={f} onClick={() => setListingFilter(f)}
-                    className={`px-4 py-2 font-semibold rounded-lg transition-colors capitalize ${listingFilter === f ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
-                    {f === 'all' ? 'All Listings' : f.charAt(0).toUpperCase() + f.slice(1)}
-                  </button>
-                ))}
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2 inline-flex gap-2 flex-wrap">
+                  {(['all', 'active', 'pending', 'suspended'] as const).map((f) => (
+                    <button key={f} onClick={() => setListingFilter(f)}
+                      className={`px-4 py-2 font-semibold rounded-lg transition-colors ${listingFilter === f ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
+                      {f === 'all' ? 'All' : f === 'pending' ? 'Pending Review' : f.charAt(0).toUpperCase() + f.slice(1)}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-sm text-gray-500 font-medium">
+                  {getFilteredListings().length} listing{getFilteredListings().length !== 1 ? 's' : ''}
+                </p>
               </div>
 
-              {getFilteredListings().length > 0 ? (
+              {listingsLoading ? (
+                <div className="flex justify-center py-16">
+                  <Clock className="animate-spin text-blue-600" size={36} />
+                </div>
+              ) : listingsError ? (
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 text-center">
+                  <AlertCircle className="mx-auto text-red-400 mb-4" size={48} />
+                  <p className="text-red-600 font-semibold mb-4">{listingsError}</p>
+                  <button onClick={loadListings} className="px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700">Retry</button>
+                </div>
+              ) : getFilteredListings().length === 0 ? (
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 text-center">
+                  <Building className="mx-auto text-gray-400 mb-4" size={48} />
+                  <p className="text-gray-600 font-semibold">No listings found</p>
+                </div>
+              ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {getFilteredListings().map((listing) => (
                     <ListingCard
-                      key={listing.id}
-                      {...listing}
-                      isSelected={selectedListing?.id === listing.id}
+                      key={listing.listingId}
+                      listingId={listing.listingId}
+                      title={listing.title}
+                      askingPrice={listing.askingPrice}
+                      city={listing.city}
+                      country={listing.country}
+                      listingType={listing.listingType}
+                      propertyType={listing.propertyType}
+                      status={listing.status}
+                      ownerName={listing.ownerName}
+                      agentName={listing.agentName}
+                      photoUrl={listing.photoUrl}
+                      moderationNotes={listing.moderationNotes}
+                      isSelected={selectedListing?.listingId === listing.listingId}
                       actionReason={actionReason}
                       onSelect={() => setSelectedListing(listing)}
                       onCancel={clearAction}
                       onActionReasonChange={setActionReason}
-                      onFlag={() => { console.log('Flag:', listing.id, actionReason); clearAction(); }}
-                      onSuspend={() => { console.log('Suspend:', listing.id, actionReason); clearAction(); }}
-                      onRemove={() => { console.log('Remove:', listing.id, actionReason); clearAction(); }}
+                      onSuspend={() => handleSuspendListing(listing)}
+                      onRemove={() => handleRemoveListing(listing)}
+                      actionLoading={listingActionLoading}
                     />
                   ))}
-                </div>
-              ) : (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 text-center">
-                  <Building className="mx-auto text-gray-400 mb-4" size={48} />
-                  <p className="text-gray-600 font-semibold">No listings found</p>
                 </div>
               )}
             </div>
@@ -677,54 +753,63 @@ export default function AdminDashboardPage() {
                 ))}
               </div>
 
+              {usersLoading && (
+                <div className="flex justify-center py-8">
+                  <Clock className="animate-spin text-blue-600" size={32} />
+                </div>
+              )}
+              {usersError && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 flex items-center justify-between">
+                  <span>{usersError}</span>
+                  <button onClick={loadUsers} className="ml-3 underline font-semibold">Retry</button>
+                </div>
+              )}
+
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
-                        {['User', 'Role', 'Status', 'Verification', 'Last Active', 'Actions'].map((h) => (
+                        {['User', 'Role', 'Status', 'Joined', 'Actions'].map((h) => (
                           <th key={h} className="px-6 py-4 text-left text-sm font-bold text-gray-700">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {getFilteredUsers().map((user) => (
-                        <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                      {getFilteredUsers().map((user) => {
+                        const fullName = `${user.firstName} ${user.lastName}`.trim();
+                        const initials = [user.firstName[0], user.lastName[0]].filter(Boolean).join('');
+                        const roleLabel = user.role === 'PropertyInspector' ? 'INSPECTOR' : user.role.toUpperCase();
+                        return (
+                        <tr key={user.userId} className="hover:bg-gray-50 transition-colors">
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
                               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
-                                {user.name.split(' ').map(n => n[0]).join('')}
+                                {initials}
                               </div>
                               <div>
-                                <p className="font-semibold text-gray-900">{user.name}</p>
+                                <p className="font-semibold text-gray-900">{fullName}</p>
                                 <div className="flex items-center gap-2 text-sm text-gray-600 mt-0.5"><Mail size={14} /><span>{user.email}</span></div>
                               </div>
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${getRoleColor(user.role)}`}>{user.role.toUpperCase()}</span>
+                            <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${getRoleColor(user.role)}`}>{roleLabel}</span>
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${getStatusColor(user.status)}`}>{user.status.replace(/_/g, ' ').toUpperCase()}</span>
+                            <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${getStatusColor(user.accountStatus)}`}>{user.accountStatus.toUpperCase()}</span>
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${
-                              user.verificationStatus === 'verified' ? 'bg-green-100 text-green-700 border-green-200' :
-                              user.verificationStatus === 'pending'  ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
-                                                                       'bg-red-100 text-red-700 border-red-200'
-                            }`}>{user.verificationStatus.toUpperCase()}</span>
+                            <div className="flex items-center gap-2 text-sm text-gray-600"><Calendar size={16} /><span>{new Date(user.createdAt).toLocaleDateString()}</span></div>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="flex items-center gap-2 text-sm text-gray-600"><Calendar size={16} /><span>{user.lastActive}</span></div>
-                          </td>
-                          <td className="px-6 py-4">
-                            {selectedUser?.id === user.id ? (
+                            {selectedUser?.userId === user.userId ? (
                               <div className="space-y-2">
                                 <input type="text" value={actionReason} onChange={(e) => setActionReason(e.target.value)}
                                   placeholder="Reason for action..."
                                   className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
                                 <div className="flex gap-2">
-                                  <button onClick={() => { console.log('Suspend user:', user.id, actionReason); clearAction(); }} disabled={!actionReason.trim()}
+                                  <button onClick={clearAction} disabled={!actionReason.trim()}
                                     className="flex-1 px-3 py-2 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
                                     Suspend
                                   </button>
@@ -739,7 +824,8 @@ export default function AdminDashboardPage() {
                             )}
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -747,15 +833,15 @@ export default function AdminDashboardPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
                 {[
-                  { role: 'buyer',     label: 'Buyers',     icon: <Users          className="text-blue-600"   size={32} /> },
-                  { role: 'owner',     label: 'Owners',     icon: <Home           className="text-green-600"  size={32} /> },
-                  { role: 'agent',     label: 'Agents',     icon: <Shield         className="text-purple-600" size={32} /> },
-                  { role: 'inspector', label: 'Inspectors', icon: <ClipboardCheck className="text-orange-600" size={32} /> },
+                  { role: 'Buyer',             label: 'Buyers',     icon: <Users          className="text-blue-600"   size={32} /> },
+                  { role: 'Owner',             label: 'Owners',     icon: <Home           className="text-green-600"  size={32} /> },
+                  { role: 'Agent',             label: 'Agents',     icon: <Shield         className="text-purple-600" size={32} /> },
+                  { role: 'PropertyInspector', label: 'Inspectors', icon: <ClipboardCheck className="text-orange-600" size={32} /> },
                 ].map(({ role, label, icon }) => (
                   <div key={role} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                     <div className="flex items-center justify-between mb-4">
                       {icon}
-                      <span className="text-3xl font-bold text-gray-900">{platformUsers.filter(u => u.role === role).length}</span>
+                      <span className="text-3xl font-bold text-gray-900">{users.filter(u => u.role === role).length}</span>
                     </div>
                     <p className="text-sm font-semibold text-gray-600">{label}</p>
                   </div>

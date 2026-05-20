@@ -314,7 +314,7 @@ export default function BuyerDashboardPage() {
   const handleSignOut = useCallback(async () => {
     try { await authService.logout(); } catch { /* ignore */ }
     tokenStorage.clear();
-    router.push('/login');
+    router.push('/');
   }, [router]);
 
   // ── Offer actions ──────────────────────────────────────────────────────────

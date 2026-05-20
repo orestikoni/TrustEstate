@@ -161,7 +161,7 @@ const mockTransactions: Transaction[] = [
 
 
 export default function AgentDashboardPage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
   const [activeTab, setActiveTab] = useState<
     'dashboard' | 'assignments' | 'listings' | 'offers' | 'transactions' | 'messages' | 'notifications'
@@ -558,7 +558,7 @@ export default function AgentDashboardPage() {
         <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-white hover:bg-blue-500/30 transition-all">
           <Settings size={20} /> Settings
         </button>
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-red-300 hover:bg-red-500/10 transition-all">
+        <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-red-300 hover:bg-red-500/10 transition-all">
           <LogOut size={20} /> Sign Out
         </button>
       </div>

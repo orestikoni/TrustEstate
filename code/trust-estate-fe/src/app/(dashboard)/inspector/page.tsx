@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { notificationService, type ApiNotification, formatNotificationDate } from '@/services/notification.service';
+import { useAuth } from '@/store/auth.context';
 import Link from 'next/link';
 import {
   Home,
@@ -138,6 +139,7 @@ const emptyCategory: CategoryFindings = { findings: '', rating: '', severity: ''
 type ReportCategory = keyof Omit<InspectionReport, 'inspectionId' | 'finalVerdict' | 'submittedDate' | 'locked'>;
 
 export default function InspectorDashboardPage() {
+  const { logout } = useAuth();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'inspections' | 'history' | 'notifications'>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedInspection, setSelectedInspection] = useState<AssignedInspection | null>(null);
@@ -288,7 +290,7 @@ export default function InspectorDashboardPage() {
         <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-white hover:bg-blue-500/30 transition-all">
           <Settings size={20} /> Settings
         </button>
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-red-300 hover:bg-red-500/10 transition-all">
+        <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-red-300 hover:bg-red-500/10 transition-all">
           <LogOut size={20} /> Sign Out
         </button>
       </div>
