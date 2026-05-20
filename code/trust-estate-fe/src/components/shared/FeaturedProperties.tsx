@@ -114,6 +114,7 @@ export const FeaturedProperties = () => {
             property={property}
             onSave={handleSave}
             isSaved={savedIds.includes(property.id)}
+            href={`/properties/${property.id}`}
           />
         ))}
       </div>

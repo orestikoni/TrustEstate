@@ -7,7 +7,9 @@ import { authService } from '@/services/auth.service';
 import { tokenStorage, ApiRequestError } from '@/lib/api-client';
 import { offerService } from '@/services/offer.service';
 import { listingService, type ApiListing } from '@/services/listing.service';
-import type { User, OfferDto } from '@/types';
+import { messageService, type MessageThreadDto, type MessageDto } from '@/services/message.service';
+import type { User, OfferDto, PostInspectionOptionsDto } from '@/types';
+import { PostInspectionPanel } from '@/components/shared/PostInspectionPanel';
 import Link from 'next/link';
 import {
   Home,
@@ -35,7 +37,6 @@ import {
   ChevronRight,
   Users,
   Edit3,
-  Plus,
   Loader2,
 } from 'lucide-react';
 
@@ -55,6 +56,7 @@ interface NegotiationRound {
 interface Offer {
   id: number;
   listingId: number;
+  agentId: number | null;
   propertyTitle: string;
   propertyImage: string;
   offerAmount: number;
@@ -68,6 +70,7 @@ interface Offer {
   canWithdraw: boolean;
   canAcceptCounter: boolean;
   canDeclineCounter: boolean;
+  postInspectionOptions?: PostInspectionOptionsDto;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -90,6 +93,7 @@ function mapOfferDto(dto: OfferDto, listing?: ApiListing): Offer {
   return {
     id: dto.offerId,
     listingId: dto.listingId,
+    agentId: listing?.agentId ?? null,
     propertyTitle: listing?.title ?? `Listing #${dto.listingId}`,
     propertyImage: listing?.photos[0]?.photoUrl ?? '',
     offerAmount: dto.proposedPrice,
@@ -119,11 +123,18 @@ export default function BuyerDashboardPage() {
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'favorites' | 'offers' | 'messages' | 'notifications' | 'submit'
+    'dashboard' | 'favorites' | 'offers' | 'messages' | 'notifications' | 'browse'
   >('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
-  const [messageText, setMessageText] = useState('');
+  // Messages state
+  const [threads, setThreads] = useState<MessageThreadDto[]>([]);
+  const [threadsLoading, setThreadsLoading] = useState(false);
+  const [activeThread, setActiveThread] = useState<MessageThreadDto | null>(null);
+  const [threadMessages, setThreadMessages] = useState<MessageDto[]>([]);
+  const [threadMessagesLoading, setThreadMessagesLoading] = useState(false);
+  const [newMessageText, setNewMessageText] = useState('');
+  const [messageSendLoading, setMessageSendLoading] = useState(false);
   const [reviseAmount, setReviseAmount] = useState('');
   const [reviseMessage, setReviseMessage] = useState('');
   const [notifications, setNotifications] = useState<ApiNotification[]>([]);
@@ -134,17 +145,17 @@ export default function BuyerDashboardPage() {
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersError, setOffersError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [postInspectionLoading, setPostInspectionLoading] = useState(false);
 
   // Favorites state
   const [favorites, setFavorites] = useState<ApiListing[]>([]);
   const [favoritesLoading, setFavoritesLoading] = useState(false);
 
-  // Submit offer form state
-  const [submitListingId, setSubmitListingId] = useState('');
-  const [submitPrice, setSubmitPrice] = useState('');
-  const [submitMessage, setSubmitMessage] = useState('');
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitLoading, setSubmitLoading] = useState(false);
+  // Browse listings state
+  const [browseListings, setBrowseListings] = useState<ApiListing[]>([]);
+  const [browseLoading, setBrowseLoading] = useState(false);
+  const [browseError, setBrowseError] = useState<string | null>(null);
+
 
   useEffect(() => {
     authService.me().then(setCurrentUser).catch(() => {});
@@ -192,6 +203,93 @@ export default function BuyerDashboardPage() {
   }, []);
 
   useEffect(() => { loadFavorites(); }, [loadFavorites]);
+
+  // ── Load active listings (Browse tab) ──────────────────────────────────────
+
+  const loadBrowseListings = useCallback(async () => {
+    setBrowseLoading(true);
+    setBrowseError(null);
+    try {
+      const result = await listingService.getActiveListings({ pageSize: 20 });
+      setBrowseListings(result.items);
+    } catch (err) {
+      setBrowseError(
+        err instanceof ApiRequestError ? err.apiError.message : 'Failed to load listings.',
+      );
+    } finally {
+      setBrowseLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'browse') loadBrowseListings();
+  }, [activeTab, loadBrowseListings]);
+
+  // ── Messages ───────────────────────────────────────────────────────────────
+
+  const loadThreads = useCallback(async () => {
+    setThreadsLoading(true);
+    try {
+      const data = await messageService.getThreads();
+      setThreads(data);
+    } catch { /* silently ignore */ }
+    finally { setThreadsLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'messages') loadThreads();
+  }, [activeTab, loadThreads]);
+
+  const handleSelectThread = useCallback(async (thread: MessageThreadDto) => {
+    setActiveThread(thread);
+    setThreadMessagesLoading(true);
+    try {
+      const msgs = await messageService.getThreadMessages(thread.threadId);
+      setThreadMessages(msgs);
+      // Refresh threads to reset unread count
+      setThreads((prev) =>
+        prev.map((t) => t.threadId === thread.threadId ? { ...t, unreadCount: 0 } : t),
+      );
+    } catch { /* silently ignore */ }
+    finally { setThreadMessagesLoading(false); }
+  }, []);
+
+  const handleSendMessage = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeThread || !newMessageText.trim()) return;
+    const content = newMessageText.trim();
+    const recipientId =
+      currentUser?.userId === activeThread.participantOneId
+        ? activeThread.participantTwoId
+        : activeThread.participantOneId;
+    setMessageSendLoading(true);
+    try {
+      const msg = await messageService.sendMessage({
+        recipientId,
+        listingId: activeThread.listingId,
+        content,
+      });
+      setThreadMessages((prev) => [...prev, msg]);
+      setNewMessageText('');
+    } catch { /* silently ignore */ }
+    finally { setMessageSendLoading(false); }
+  }, [activeThread, newMessageText, currentUser]);
+
+  const handleMessageAgent = useCallback(async (offer: Offer) => {
+    if (!offer.agentId) return;
+    try {
+      const thread = await messageService.getOrCreateThread(offer.agentId, offer.listingId);
+      const [data, msgs] = await Promise.all([
+        messageService.getThreads(),
+        messageService.getThreadMessages(thread.threadId),
+      ]);
+      setThreads(data);
+      setActiveThread(thread);
+      setThreadMessages(msgs);
+      setSelectedOffer(null);
+      setActiveTab('messages');
+    } catch { /* silently ignore */ }
+  }, []);
 
   // ── Notifications ──────────────────────────────────────────────────────────
 
@@ -279,27 +377,64 @@ export default function BuyerDashboardPage() {
     }
   }, [loadOffers]);
 
-  const handleSubmitOffer = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    const listingId = parseInt(submitListingId);
-    const price = parseFloat(submitPrice.replace(/,/g, ''));
-    if (isNaN(listingId) || listingId <= 0) { setSubmitError('Please enter a valid listing ID.'); return; }
-    if (isNaN(price) || price <= 0) { setSubmitError('Please enter a valid offer price.'); return; }
-    setSubmitLoading(true);
-    setSubmitError(null);
+  // ── Post-inspection actions ────────────────────────────────────────────────
+
+  const handlePostInspectionWithdraw = useCallback(async () => {
+    if (!selectedOffer) return;
+    setPostInspectionLoading(true);
     try {
-      await offerService.submitOffer({ listingId, proposedPrice: price, message: submitMessage || undefined });
-      setSubmitListingId('');
-      setSubmitPrice('');
-      setSubmitMessage('');
+      await offerService.withdrawAfterInspection(selectedOffer.id);
       await loadOffers();
-      setActiveTab('offers');
+      setSelectedOffer(null);
     } catch (err) {
-      setSubmitError(err instanceof ApiRequestError ? err.apiError.message : 'Failed to submit offer.');
+      alert(
+        err instanceof ApiRequestError
+          ? err.apiError.message
+          : 'Failed to withdraw offer after inspection.',
+      );
     } finally {
-      setSubmitLoading(false);
+      setPostInspectionLoading(false);
     }
-  }, [submitListingId, submitPrice, submitMessage, loadOffers]);
+  }, [selectedOffer, loadOffers]);
+
+  const handlePostInspectionRevise = useCallback(
+    async (newAmount: number) => {
+      if (!selectedOffer) return;
+      setPostInspectionLoading(true);
+      try {
+        await offerService.reviseAfterInspection(selectedOffer.id, newAmount);
+        await loadOffers();
+        setSelectedOffer(null);
+      } catch (err) {
+        alert(
+          err instanceof ApiRequestError
+            ? err.apiError.message
+            : 'Failed to revise offer after inspection.',
+        );
+      } finally {
+        setPostInspectionLoading(false);
+      }
+    },
+    [selectedOffer, loadOffers],
+  );
+
+  // ── Fetch post-inspection options when an offer is selected ───────────────
+
+  useEffect(() => {
+    if (!selectedOffer) return;
+    // Only fetch for statuses where a window could be open
+    if (!['accepted', 'pending', 'countered'].includes(selectedOffer.status)) return;
+    let cancelled = false;
+    offerService.getPostInspectionOptions(selectedOffer.id).then((opts) => {
+      if (cancelled) return;
+      if (opts.windowOpen) {
+        setSelectedOffer((prev) =>
+          prev ? { ...prev, postInspectionOptions: opts } : prev,
+        );
+      }
+    }).catch(() => { /* silently ignore — window simply not open */ });
+    return () => { cancelled = true; };
+  }, [selectedOffer?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -377,9 +512,9 @@ export default function BuyerDashboardPage() {
       <nav className="flex-1 p-4 space-y-2">
         {[
           { tab: 'dashboard',     icon: <Home size={20} />,          label: 'Dashboard' },
+          { tab: 'browse',        icon: <Search size={20} />,        label: 'Browse Properties' },
           { tab: 'favorites',     icon: <Heart size={20} />,         label: 'Saved Favorites', count: favorites.length },
           { tab: 'offers',        icon: <FileText size={20} />,      label: 'My Offers',       count: offers.length },
-          { tab: 'submit',        icon: <Plus size={20} />,          label: 'Submit Offer' },
           { tab: 'messages',      icon: <MessageSquare size={20} />, label: 'Messages' },
           { tab: 'notifications', icon: <Bell size={20} />,          label: 'Notifications',
             count: notifications.filter((n) => !n.isRead).length, countColor: 'bg-red-500' },
@@ -445,28 +580,146 @@ export default function BuyerDashboardPage() {
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900">
                     {activeTab === 'dashboard'     && 'Buyer Dashboard'}
+                    {activeTab === 'browse'        && 'Browse Properties'}
                     {activeTab === 'favorites'     && 'Saved Favorites'}
                     {activeTab === 'offers'        && (selectedOffer ? `Offer — ${selectedOffer.propertyTitle}` : 'My Offers')}
-                    {activeTab === 'submit'        && 'Submit New Offer'}
                     {activeTab === 'messages'      && 'Messages'}
                     {activeTab === 'notifications' && 'Notifications'}
                   </h1>
                   <p className="text-sm text-gray-600 mt-0.5">
                     {activeTab === 'dashboard' && 'Overview of your property search activity'}
+                    {activeTab === 'browse'    && 'All active listings available for purchase or rent'}
                     {activeTab === 'favorites' && "Properties you've saved for later"}
                     {activeTab === 'offers' && !selectedOffer && 'Track all your submitted offers'}
                   </p>
                 </div>
               </div>
-              <Link href="/search" className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all shadow-lg">
+              <button
+                onClick={() => setActiveTab('browse')}
+                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all shadow-lg"
+              >
                 <Search size={20} />
                 <span className="hidden sm:inline">Browse Properties</span>
-              </Link>
+              </button>
             </div>
           </div>
         </header>
 
         <div className="px-4 sm:px-6 lg:px-8 py-8">
+
+          {/* ── Browse Properties Tab ── */}
+          {activeTab === 'browse' && (
+            <div className="space-y-6">
+              {browseLoading ? (
+                <div className="flex justify-center py-16">
+                  <Loader2 className="animate-spin text-blue-600" size={40} />
+                </div>
+              ) : browseError ? (
+                <div className="text-center py-16">
+                  <AlertCircle className="mx-auto text-red-400 mb-4" size={48} />
+                  <p className="text-red-600 font-semibold">{browseError}</p>
+                  <button
+                    onClick={loadBrowseListings}
+                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : browseListings.length === 0 ? (
+                <div className="text-center py-16">
+                  <Search className="mx-auto text-gray-400 mb-4" size={48} />
+                  <p className="text-gray-600 font-semibold">No active listings found.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {browseListings.map((listing) => {
+                    const alreadyFavorited = favorites.some((f) => f.listingId === listing.listingId);
+                    return (
+                      <div
+                        key={listing.listingId}
+                        className="group bg-white rounded-2xl overflow-hidden border border-gray-200 shadow-md hover:shadow-xl transition-all hover:-translate-y-1 duration-300 flex flex-col"
+                      >
+                        {/* Image */}
+                        <div className="relative h-48 overflow-hidden bg-gray-100 flex-shrink-0">
+                          {listing.photos[0] ? (
+                            <img
+                              src={listing.photos[0].photoUrl}
+                              alt={listing.title}
+                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-300">
+                              <Home size={48} />
+                            </div>
+                          )}
+                          {/* Listing type badge */}
+                          <span className="absolute top-3 left-3 px-2.5 py-1 bg-blue-600 text-white text-xs font-bold rounded-full shadow">
+                            For {listing.listingType}
+                          </span>
+                          {/* Favorite toggle */}
+                          <button
+                            onClick={async () => {
+                              try {
+                                if (alreadyFavorited) {
+                                  await listingService.removeFavorite(listing.listingId);
+                                } else {
+                                  await listingService.saveFavorite(listing.listingId);
+                                }
+                                await loadFavorites();
+                              } catch { /* ignore */ }
+                            }}
+                            className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-sm rounded-full shadow hover:bg-white transition-all"
+                          >
+                            <Heart
+                              size={18}
+                              className={alreadyFavorited ? 'fill-red-500 text-red-500' : 'text-gray-400'}
+                            />
+                          </button>
+                        </div>
+
+                        {/* Details */}
+                        <div className="p-5 flex flex-col flex-1">
+                          <p className="text-xl font-bold text-blue-600 mb-1">
+                            {formatPrice(listing.askingPrice)}
+                            {listing.listingType === 'Rent' && (
+                              <span className="text-sm font-medium text-gray-500">/mo</span>
+                            )}
+                          </p>
+                          <h3 className="font-bold text-gray-900 text-base mb-1 line-clamp-1">
+                            {listing.title}
+                          </h3>
+                          <div className="flex items-center gap-1.5 text-gray-500 text-sm mb-1">
+                            <MapPin size={13} />
+                            <span className="truncate">{listing.city}, {listing.country}</span>
+                          </div>
+                          <p className="text-xs text-gray-400 mb-4">{listing.propertyType}</p>
+
+                          {/* Actions */}
+                          <div className="mt-auto flex gap-2">
+                            <Link
+                              href={`/properties/${listing.listingId}`}
+                              className="flex-1 py-2.5 text-center bg-gray-100 text-gray-800 font-semibold rounded-xl hover:bg-gray-200 transition-colors text-sm flex items-center justify-center gap-1.5"
+                            >
+                              <Eye size={15} /> View
+                            </Link>
+                            <Link
+                              href={`/properties/${listing.listingId}`}
+                              className="flex-1 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors text-sm flex items-center justify-center gap-1.5"
+                            >
+                              <Send size={15} /> Offer
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── Dashboard Tab ── */}
           {activeTab === 'dashboard' && (
@@ -500,7 +753,7 @@ export default function BuyerDashboardPage() {
                     {offersLoading ? (
                       <div className="flex justify-center py-8"><Loader2 className="animate-spin text-blue-600" size={32} /></div>
                     ) : offers.length === 0 ? (
-                      <p className="text-center text-gray-500 py-8">No offers yet. <button onClick={() => setActiveTab('submit')} className="text-blue-600 hover:underline font-semibold">Submit your first offer</button></p>
+                      <p className="text-center text-gray-500 py-8">No offers yet. <button onClick={() => setActiveTab('browse')} className="text-blue-600 hover:underline font-semibold">Browse listings to submit an offer</button></p>
                     ) : (
                       <div className="space-y-4">
                         {offers.slice(0, 3).map((offer) => {
@@ -622,9 +875,12 @@ export default function BuyerDashboardPage() {
                 <div className="text-center py-16">
                   <Heart className="mx-auto text-gray-400 mb-4" size={48} />
                   <p className="text-gray-600 font-semibold">No saved properties yet.</p>
-                  <Link href="/search" className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors">
+                  <button
+                    onClick={() => setActiveTab('browse')}
+                    className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+                  >
                     Browse Properties <ArrowRight size={18} />
-                  </Link>
+                  </button>
                 </div>
               ) : (
                 <>
@@ -660,12 +916,12 @@ export default function BuyerDashboardPage() {
                             <MapPin size={16} />
                             <span className="text-sm">{listing.city}, {listing.country}</span>
                           </div>
-                          <button
-                            onClick={() => { setSubmitListingId(String(listing.listingId)); setActiveTab('submit'); }}
+                          <Link
+                            href={`/properties/${listing.listingId}`}
                             className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                           >
-                            Submit Offer <ArrowRight size={18} />
-                          </button>
+                            View &amp; Submit Offer <ArrowRight size={18} />
+                          </Link>
                         </div>
                       </div>
                     ))}
@@ -675,70 +931,6 @@ export default function BuyerDashboardPage() {
             </div>
           )}
 
-          {/* ── Submit Offer Tab ── */}
-          {activeTab === 'submit' && (
-            <div className="max-w-2xl mx-auto">
-              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
-                <h2 className="text-xl font-bold text-gray-900 mb-6">Submit a New Offer</h2>
-                <form onSubmit={handleSubmitOffer} className="space-y-5">
-                  <div>
-                    <label className="block text-sm font-bold text-gray-900 mb-2">Listing ID</label>
-                    <input
-                      type="number"
-                      placeholder="Enter the listing ID"
-                      value={submitListingId}
-                      onChange={(e) => setSubmitListingId(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      required
-                    />
-                    <p className="text-xs text-gray-500 mt-1">You can find the listing ID from the property listing page.</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-900 mb-2">Offer Price (USD)</label>
-                    <div className="relative">
-                      <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                      <input
-                        type="text"
-                        placeholder="500,000"
-                        value={submitPrice}
-                        onChange={(e) => setSubmitPrice(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-900 mb-2">Message to Agent (optional)</label>
-                    <textarea
-                      rows={4}
-                      placeholder="Tell the agent why you're interested and any relevant details..."
-                      value={submitMessage}
-                      onChange={(e) => setSubmitMessage(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                    />
-                  </div>
-                  {submitError && (
-                    <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-medium">
-                      {submitError}
-                    </div>
-                  )}
-                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-sm text-yellow-900">
-                      <strong>Note:</strong> You can only have one active offer per listing. You must be logged in as a Buyer and the listing must be Active.
-                    </p>
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={submitLoading}
-                    className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {submitLoading ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />}
-                    {submitLoading ? 'Submitting…' : 'Submit Offer'}
-                  </button>
-                </form>
-              </div>
-            </div>
-          )}
 
           {/* ── Offers List Tab ── */}
           {activeTab === 'offers' && !selectedOffer && (
@@ -757,16 +949,16 @@ export default function BuyerDashboardPage() {
                 <div className="text-center py-16">
                   <FileText className="mx-auto text-gray-400 mb-4" size={48} />
                   <p className="text-gray-600 font-semibold">No offers yet.</p>
-                  <button onClick={() => setActiveTab('submit')} className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors">
-                    <Plus size={18} /> Submit Your First Offer
+                  <button onClick={() => setActiveTab('browse')} className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors">
+                    <Search size={18} /> Browse Listings to Submit an Offer
                   </button>
                 </div>
               ) : (
                 <>
                   <div className="flex items-center justify-between mb-6">
                     <p className="text-gray-700 font-semibold">You have submitted {offers.length} offer{offers.length !== 1 ? 's' : ''}</p>
-                    <button onClick={() => setActiveTab('submit')} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors text-sm">
-                      <Plus size={16} /> New Offer
+                    <button onClick={() => setActiveTab('browse')} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors text-sm">
+                      <Search size={16} /> Browse Listings
                     </button>
                   </div>
                   <div className="space-y-4">
@@ -947,8 +1139,8 @@ export default function BuyerDashboardPage() {
                   </div>
                 )}
 
-                {/* Revise Offer Form */}
-                {selectedOffer.canRevise && (
+                {/* Revise Offer Form — hidden when post-inspection window supersedes it */}
+                {selectedOffer.canRevise && !selectedOffer.postInspectionOptions?.windowOpen && (
                   <div className="mb-6 p-6 bg-blue-50 border border-blue-200 rounded-xl">
                     <h3 className="text-lg font-bold text-blue-900 mb-4">Submit Revised Offer</h3>
                     <div className="space-y-4">
@@ -984,6 +1176,33 @@ export default function BuyerDashboardPage() {
                   </div>
                 )}
 
+                {/* Post-inspection panel — only shown when window is open */}
+                {selectedOffer.postInspectionOptions?.windowOpen && (
+                  <div className="mb-6">
+                    <PostInspectionPanel
+                      offerId={selectedOffer.id}
+                      propertyTitle={selectedOffer.propertyTitle}
+                      currentOfferAmount={selectedOffer.offerAmount}
+                      options={selectedOffer.postInspectionOptions}
+                      actionLoading={postInspectionLoading}
+                      onWithdraw={handlePostInspectionWithdraw}
+                      onRevise={handlePostInspectionRevise}
+                    />
+                  </div>
+                )}
+
+                {selectedOffer.agentId && (
+                  <div className="mb-6">
+                    <button
+                      onClick={() => handleMessageAgent(selectedOffer)}
+                      className="w-full py-3 bg-gray-700 text-white font-bold rounded-xl hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <MessageSquare size={18} />
+                      Message Your Agent
+                    </button>
+                  </div>
+                )}
+
                 <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <p className="text-sm text-yellow-900">
                     <strong>Note:</strong> You can only have one active offer per listing. Negotiation is limited to 3 rounds.
@@ -995,45 +1214,156 @@ export default function BuyerDashboardPage() {
 
           {/* ── Messages Tab ── */}
           {activeTab === 'messages' && (
-            <div className="max-w-4xl mx-auto">
-              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-200px)]">
-                <div className="p-6 border-b border-gray-200 bg-gray-50">
-                  <div className="mb-4">
-                    <label className="block text-sm font-bold text-gray-900 mb-2">Select Property to Message About</label>
-                    <select
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
-                      onChange={(e) => {
-                        const o = offers.find((o) => o.listingId === parseInt(e.target.value));
-                        setSelectedOffer(o || null);
-                      }}
-                      value={selectedOffer?.listingId || ''}
-                    >
-                      <option value="">Choose a property</option>
-                      {offers.map((offer) => (
-                        <option key={offer.listingId} value={offer.listingId}>
-                          {offer.propertyTitle}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+            <div className="flex gap-6 h-[calc(100vh-180px)]">
+
+              {/* Thread list */}
+              <div className="w-80 flex-shrink-0 bg-white rounded-2xl shadow-lg border border-gray-200 flex flex-col overflow-hidden">
+                <div className="p-4 border-b border-gray-200">
+                  <h2 className="font-bold text-gray-900 flex items-center gap-2">
+                    <MessageSquare size={18} className="text-blue-600" /> Conversations
+                  </h2>
                 </div>
-                <div className="flex-1 overflow-y-auto p-6 bg-gray-50 flex items-center justify-center">
-                  <div className="text-center">
-                    <MessageSquare className="mx-auto text-gray-400 mb-4" size={48} />
-                    <p className="text-gray-600 font-semibold">Messaging coming soon</p>
-                    <p className="text-sm text-gray-500">Use the Messages tab to communicate with agents</p>
-                  </div>
+                <div className="flex-1 overflow-y-auto">
+                  {threadsLoading ? (
+                    <div className="flex justify-center py-10">
+                      <Loader2 className="animate-spin text-blue-600" size={28} />
+                    </div>
+                  ) : threads.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full px-6 text-center py-10">
+                      <MessageSquare className="text-gray-300 mb-3" size={40} />
+                      <p className="text-sm text-gray-500 font-medium">No conversations yet.</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Contact an agent from a property page to start one.
+                      </p>
+                    </div>
+                  ) : (
+                    threads.map((thread) => {
+                      const otherName =
+                        currentUser?.userId === thread.participantOneId
+                          ? thread.participantTwoFullName
+                          : thread.participantOneFullName;
+                      const isActive = activeThread?.threadId === thread.threadId;
+                      return (
+                        <button
+                          key={thread.threadId}
+                          onClick={() => handleSelectThread(thread)}
+                          className={`w-full text-left px-4 py-4 border-b border-gray-100 transition-colors hover:bg-blue-50 ${
+                            isActive ? 'bg-blue-50 border-l-4 border-l-blue-600' : ''
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="font-semibold text-gray-900 text-sm truncate">{otherName}</p>
+                            {thread.unreadCount > 0 && (
+                              <span className="ml-2 flex-shrink-0 w-5 h-5 bg-blue-600 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                                {thread.unreadCount}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-blue-600 font-medium truncate mb-1">
+                            {thread.listingTitle}
+                          </p>
+                          {thread.lastMessage && (
+                            <p className="text-xs text-gray-500 truncate">
+                              {thread.lastMessage.content}
+                            </p>
+                          )}
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
-                {selectedOffer && (
-                  <div className="p-6 border-t border-gray-200 bg-white">
-                    <form className="flex gap-3" onSubmit={(e) => { e.preventDefault(); if (messageText.trim()) { setMessageText(''); } }}>
-                      <input type="text" placeholder="Type your message..." value={messageText} onChange={(e) => setMessageText(e.target.value)}
-                        className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                      <button type="submit" className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2">
-                        <Send size={20} /> Send
-                      </button>
-                    </form>
+              </div>
+
+              {/* Message pane */}
+              <div className="flex-1 bg-white rounded-2xl shadow-lg border border-gray-200 flex flex-col overflow-hidden">
+                {!activeThread ? (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
+                    <MessageSquare className="text-gray-300 mb-4" size={56} />
+                    <p className="text-gray-600 font-semibold">Select a conversation</p>
+                    <p className="text-sm text-gray-400 mt-1">
+                      Choose a thread on the left to read and reply to messages.
+                    </p>
                   </div>
+                ) : (
+                  <>
+                    {/* Thread header */}
+                    <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+                      <p className="font-bold text-gray-900">
+                        {currentUser?.userId === activeThread.participantOneId
+                          ? activeThread.participantTwoFullName
+                          : activeThread.participantOneFullName}
+                      </p>
+                      <p className="text-xs text-blue-600 font-medium mt-0.5">
+                        Re: {activeThread.listingTitle}
+                      </p>
+                    </div>
+
+                    {/* Messages */}
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
+                      {threadMessagesLoading ? (
+                        <div className="flex justify-center py-8">
+                          <Loader2 className="animate-spin text-blue-600" size={28} />
+                        </div>
+                      ) : threadMessages.length === 0 ? (
+                        <p className="text-center text-gray-400 text-sm py-8">
+                          No messages yet. Say hello!
+                        </p>
+                      ) : (
+                        threadMessages.map((msg) => {
+                          const isMine = msg.senderId === currentUser?.userId;
+                          return (
+                            <div
+                              key={msg.messageId}
+                              className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
+                            >
+                              <div
+                                className={`max-w-[70%] px-4 py-3 rounded-2xl text-sm ${
+                                  isMine
+                                    ? 'bg-blue-600 text-white rounded-br-sm'
+                                    : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm shadow-sm'
+                                }`}
+                              >
+                                {!isMine && (
+                                  <p className="text-xs font-semibold mb-1 text-blue-600">
+                                    {msg.senderFullName}
+                                  </p>
+                                )}
+                                <p className="leading-relaxed">{msg.content}</p>
+                                <p className={`text-xs mt-1.5 ${isMine ? 'text-blue-200' : 'text-gray-400'}`}>
+                                  {new Date(msg.sentAt).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    {/* Send bar */}
+                    <div className="p-4 border-t border-gray-200 bg-white flex-shrink-0">
+                      <form onSubmit={handleSendMessage} className="flex gap-3">
+                        <input
+                          type="text"
+                          placeholder="Type a message…"
+                          value={newMessageText}
+                          onChange={(e) => setNewMessageText(e.target.value)}
+                          className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        />
+                        <button
+                          type="submit"
+                          disabled={messageSendLoading || !newMessageText.trim()}
+                          className="px-5 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {messageSendLoading
+                            ? <Loader2 size={18} className="animate-spin" />
+                            : <Send size={18} />}
+                        </button>
+                      </form>
+                    </div>
+                  </>
                 )}
               </div>
             </div>

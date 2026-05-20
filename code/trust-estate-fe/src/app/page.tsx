@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Building2, UserRound } from 'lucide-react';
 import { Navbar } from '@/components/layout/Navbar';
 import { Hero } from '@/components/shared/Hero';
@@ -42,9 +43,11 @@ export default function RootPage() {
                   Explore thousands of premium listings across the country and find the perfect
                   property tailored to your lifestyle and budget.
                 </p>
-                <Button variant="ghost" size="sm" className="border border-blue-500 px-6 font-bold mt-auto">
-                  Browse Now
-                </Button>
+                <Link href="/register">
+                  <Button variant="ghost" size="sm" className="border border-blue-500 px-6 font-bold mt-auto">
+                    Browse Now
+                  </Button>
+                </Link>
               </div>
 
               {/* Contact an Agent Card */}
@@ -57,9 +60,11 @@ export default function RootPage() {
                   Connect with our expert local agents who will personally guide you through every
                   step of your real estate journey.
                 </p>
-                <Button variant="ghost" size="sm" className="border border-blue-500 px-6 font-bold mt-auto">
-                  Find an Agent
-                </Button>
+                <Link href="/register">
+                  <Button variant="ghost" size="sm" className="border border-blue-500 px-6 font-bold mt-auto">
+                    Find an Agent
+                  </Button>
+                </Link>
               </div>
             </div>
           </div>

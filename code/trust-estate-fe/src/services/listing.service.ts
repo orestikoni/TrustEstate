@@ -30,6 +30,7 @@ export interface ApiListing {
   propertyType: PropertyType;
   status: ApiListingStatus;
   ownerId: number;
+  ownerName: string | null;
   agentId: number | null;
   correctionNotes: string | null;
   moderationNotes: string | null;
@@ -106,6 +107,15 @@ function buildQuery(params: ListingFilterParams): string {
   return str ? `?${str}` : '';
 }
 
+export interface ListingAssignmentDto {
+  assignmentId: number;
+  listingId: number;
+  agentId: number;
+  assignmentStatus: string;
+  requestedAt: string;
+  respondedAt: string | null;
+}
+
 export const listingService = {
   // Owner
   getMyListings: () => apiClient.get<ApiListing[]>('/listings/my'),
@@ -121,6 +131,12 @@ export const listingService = {
 
   // Agent
   getAssignedListings: () => apiClient.get<ApiListing[]>('/listings/assigned'),
+  respondToAssignment: (id: number, accept: boolean) =>
+    apiClient.put<ListingAssignmentDto>(`/listings/${id}/assignment/respond`, { accept }),
+  approveListing: (id: number) =>
+    apiClient.put<ApiListing>(`/listings/${id}/approve`, {}),
+  requestCorrections: (id: number, correctionNotes: string) =>
+    apiClient.put<ApiListing>(`/listings/${id}/request-corrections`, { correctionNotes }),
 
   // Buyer
   getFavorites: () => apiClient.get<ApiListing[]>('/listings/favorites'),

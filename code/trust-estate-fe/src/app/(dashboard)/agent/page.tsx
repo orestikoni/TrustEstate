@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { notificationService, type ApiNotification, formatNotificationDate } from '@/services/notification.service';
 import Link from 'next/link';
 import {
@@ -10,9 +10,6 @@ import {
   Settings,
   LogOut,
   MapPin,
-  Bed,
-  Bath,
-  Square,
   DollarSign,
   Menu,
   X,
@@ -35,12 +32,14 @@ import {
   UserCheck,
   Loader2,
 } from 'lucide-react';
+import { useAuth } from '@/store/auth.context';
 import { offerService } from '@/services/offer.service';
-import { listingService, type ApiListing } from '@/services/listing.service';
+import { listingService, type ApiListing, type ListingPhoto } from '@/services/listing.service';
+import { messageService, type MessageThreadDto, type MessageDto } from '@/services/message.service';
 import { ApiRequestError } from '@/lib/api-client';
 import type { OfferDto } from '@/types';
 
-type ListingStatus = 'pending_assignment' | 'pending_review' | 'corrections_requested' | 'active' | 'under_offer' | 'closed';
+type ListingStatus = 'pending_review' | 'corrections_requested' | 'active' | 'under_offer' | 'closed';
 type OfferStatus = 'pending' | 'countered' | 'accepted' | 'declined';
 type TransactionStatus = 'offer_accepted' | 'inspection_scheduled' | 'inspection_completed' | 'ready_to_close' | 'closed';
 
@@ -51,15 +50,12 @@ interface ListingAssignment {
   description: string;
   price: number;
   location: string;
-  bedrooms: number;
-  bathrooms: number;
-  area: number;
-  listingType: 'sale' | 'rent';
-  image: string;
-  images: string[];
-  ownerName: string;
+  listingType: string;
+  propertyType: string;
+  photos: ListingPhoto[];
   ownerId: number;
-  assignmentStatus: 'pending' | 'accepted' | 'declined';
+  ownerName: string;
+  assignmentStatus: 'pending' | 'accepted';
   listingStatus: ListingStatus;
   assignedDate: string;
   correctionNote?: string;
@@ -117,69 +113,40 @@ interface Transaction {
   canClose: boolean;
 }
 
-interface Conversation {
-  id: number;
-  listingId: number;
-  listingTitle: string;
-  participantType: 'buyer' | 'owner';
-  participantName: string;
-  participantId: number;
-  lastMessage: string;
-  lastMessageTime: string;
-  unreadCount: number;
+
+function mapApiListingToAssignment(l: ApiListing): ListingAssignment {
+  // agentId is null until the agent accepts — use it as the authoritative accepted signal
+  const assignmentStatus: 'pending' | 'accepted' = l.agentId !== null ? 'accepted' : 'pending';
+  const listingStatus: ListingStatus =
+    l.status === 'PendingAgentReview' ? 'pending_review' :
+    l.status === 'CorrectionsRequested' ? 'corrections_requested' :
+    l.status === 'Active' ? 'active' :
+    l.status === 'UnderOffer' ? 'under_offer' :
+    'closed';
+  return {
+    id: l.listingId,
+    listingId: l.listingId,
+    title: l.title,
+    description: l.description,
+    price: l.askingPrice,
+    location: `${l.city}, ${l.country}`,
+    listingType: l.listingType,
+    propertyType: l.propertyType,
+    photos: l.photos,
+    ownerId: l.ownerId,
+    ownerName: l.ownerName ?? `Owner #${l.ownerId}`,
+    assignmentStatus,
+    listingStatus,
+    assignedDate: l.createdAt.split('T')[0],
+    correctionNote: l.correctionNotes ?? undefined,
+  };
 }
 
-
-const mockAssignments: ListingAssignment[] = [
-  {
-    id: 1, listingId: 101,
-    title: 'Modern Luxury Villa',
-    description: 'Stunning modern villa with ocean views and premium amenities',
-    price: 1250000, location: 'Beverly Hills, CA', bedrooms: 5, bathrooms: 4, area: 4500,
-    listingType: 'sale',
-    image: 'https://images.unsplash.com/photo-1759355787092-87e4eee09600?w=600&auto=format&fit=crop',
-    images: [], ownerName: 'Robert Chen', ownerId: 1,
-    assignmentStatus: 'pending', listingStatus: 'pending_assignment', assignedDate: '2024-03-14',
-  },
-  {
-    id: 2, listingId: 102,
-    title: 'Downtown Apartment',
-    description: 'Beautiful apartment in the heart of downtown with city views',
-    price: 850000, location: 'New York, NY', bedrooms: 3, bathrooms: 2, area: 2200,
-    listingType: 'sale',
-    image: 'https://images.unsplash.com/photo-1515263487990-61b07816b324?w=600&auto=format&fit=crop',
-    images: [], ownerName: 'Jennifer Martinez', ownerId: 2,
-    assignmentStatus: 'accepted', listingStatus: 'pending_review', assignedDate: '2024-03-10',
-  },
-  {
-    id: 3, listingId: 103,
-    title: 'Elegant Villa Estate',
-    description: 'Luxurious estate with expansive grounds and premium finishes',
-    price: 1850000, location: 'Miami Beach, FL', bedrooms: 6, bathrooms: 5, area: 5200,
-    listingType: 'sale',
-    image: 'https://images.unsplash.com/photo-1757264119066-2f627c6a6f03?w=600&auto=format&fit=crop',
-    images: [], ownerName: 'David Thompson', ownerId: 3,
-    assignmentStatus: 'accepted', listingStatus: 'corrections_requested', assignedDate: '2024-03-05',
-    correctionNote: 'Please add more interior photos and update the property description to include the new renovations.',
-  },
-  {
-    id: 4, listingId: 104,
-    title: 'Beachfront Paradise',
-    description: 'Luxury beachfront property with stunning ocean views',
-    price: 2100000, location: 'San Diego, CA', bedrooms: 5, bathrooms: 4, area: 4500,
-    listingType: 'sale',
-    image: 'https://images.unsplash.com/photo-1771190252113-aa988822596f?w=600&auto=format&fit=crop',
-    images: [], ownerName: 'Lisa Anderson', ownerId: 4,
-    assignmentStatus: 'accepted', listingStatus: 'active', assignedDate: '2024-02-20',
-  },
-];
-
-// Offers are loaded dynamically from API — no mock data
-
+// Inspectors, transactions, conversations are not yet backed by API endpoints
 const mockInspectors: PropertyInspector[] = [
-  { id: 1, name: 'John Smith',      licenseNumber: 'INS-12345-CA', verified: true, rating: 4.9, completedInspections: 487, specialties: ['Residential', 'Luxury Properties', 'Foundation'], available: true,  nextAvailableDate: '2024-03-18' },
-  { id: 2, name: 'Maria Garcia',    licenseNumber: 'INS-23456-CA', verified: true, rating: 4.8, completedInspections: 342, specialties: ['Residential', 'Commercial', 'Plumbing'],            available: true,  nextAvailableDate: '2024-03-16' },
-  { id: 3, name: 'Robert Johnson',  licenseNumber: 'INS-34567-CA', verified: true, rating: 5.0, completedInspections: 612, specialties: ['Luxury Properties', 'Electrical', 'HVAC'],          available: false, nextAvailableDate: '2024-03-25' },
+  { id: 1, name: 'John Smith',     licenseNumber: 'INS-12345-CA', verified: true, rating: 4.9, completedInspections: 487, specialties: ['Residential', 'Luxury Properties', 'Foundation'], available: true,  nextAvailableDate: '2024-03-18' },
+  { id: 2, name: 'Maria Garcia',   licenseNumber: 'INS-23456-CA', verified: true, rating: 4.8, completedInspections: 342, specialties: ['Residential', 'Commercial', 'Plumbing'],            available: true,  nextAvailableDate: '2024-03-16' },
+  { id: 3, name: 'Robert Johnson', licenseNumber: 'INS-34567-CA', verified: true, rating: 5.0, completedInspections: 612, specialties: ['Luxury Properties', 'Electrical', 'HVAC'],          available: false, nextAvailableDate: '2024-03-25' },
 ];
 
 const mockTransactions: Transaction[] = [
@@ -191,20 +158,17 @@ const mockTransactions: Transaction[] = [
   },
 ];
 
-const mockConversations: Conversation[] = [
-  { id: 1, listingId: 104, listingTitle: 'Beachfront Paradise',    participantType: 'buyer', participantName: 'John Smith',     participantId: 10, lastMessage: 'When can we schedule the inspection?',       lastMessageTime: '2 hours ago',  unreadCount: 2 },
-  { id: 2, listingId: 103, listingTitle: 'Elegant Villa Estate',   participantType: 'owner', participantName: 'David Thompson', participantId: 3,  lastMessage: "I've uploaded the new photos you requested.", lastMessageTime: '5 hours ago',  unreadCount: 1 },
-];
 
 
 export default function AgentDashboardPage() {
+  const { user } = useAuth();
+
   const [activeTab, setActiveTab] = useState<
     'dashboard' | 'assignments' | 'listings' | 'offers' | 'transactions' | 'messages' | 'notifications'
   >('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedListing, setSelectedListing] = useState<ListingAssignment | null>(null);
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messageText, setMessageText] = useState('');
   const [correctionNote, setCorrectionNote] = useState('');
   const [counterAmount, setCounterAmount] = useState('');
@@ -214,11 +178,24 @@ export default function AgentDashboardPage() {
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [notifications, setNotifications] = useState<ApiNotification[]>([]);
 
-  // Real offers state
   const [offers, setOffers] = useState<Offer[]>([]);
   const [offersLoading, setOffersLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [assignedListings, setAssignedListings] = useState<ApiListing[]>([]);
+  const [assignments, setAssignments] = useState<ListingAssignment[]>([]);
+
+  // ── Messaging state ──────────────────────────────────────────────────────────
+  const [threads, setThreads] = useState<MessageThreadDto[]>([]);
+  const [threadsLoading, setThreadsLoading] = useState(false);
+  const [activeThread, setActiveThread] = useState<MessageThreadDto | null>(null);
+  const [threadMessages, setThreadMessages] = useState<MessageDto[]>([]);
+  const [threadMessagesLoading, setThreadMessagesLoading] = useState(false);
+  const [msgSendLoading, setMsgSendLoading] = useState(false);
+
+  const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' | 'warning' } | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    message: string; confirmLabel: string; variant: 'danger' | 'primary'; onConfirm: () => void;
+  } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -260,11 +237,11 @@ export default function AgentDashboardPage() {
     })),
   }), []);
 
-  const loadOffers = useCallback(async () => {
+  const loadData = useCallback(async () => {
     setOffersLoading(true);
     try {
       const listings = await listingService.getAssignedListings();
-      setAssignedListings(listings);
+      setAssignments(listings.map(mapApiListingToAssignment));
       const activeListings = listings.filter((l) => l.status === 'Active' || l.status === 'UnderOffer');
       const results = await Promise.allSettled(
         activeListings.map((l) => offerService.getOffersByListing(l.listingId)),
@@ -280,7 +257,70 @@ export default function AgentDashboardPage() {
     finally { setOffersLoading(false); }
   }, [mapDtoToOffer]);
 
-  useEffect(() => { loadOffers(); }, [loadOffers]);
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // ── Messaging handlers ────────────────────────────────────────────────────────
+
+  const loadThreads = useCallback(async () => {
+    setThreadsLoading(true);
+    try {
+      const data = await messageService.getThreads();
+      setThreads(data);
+    } catch { /* silently ignore */ }
+    finally { setThreadsLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'messages') loadThreads();
+  }, [activeTab, loadThreads]);
+
+  const handleSelectThread = useCallback(async (thread: MessageThreadDto) => {
+    setActiveThread(thread);
+    setThreadMessagesLoading(true);
+    try {
+      const msgs = await messageService.getThreadMessages(thread.threadId);
+      setThreadMessages(msgs);
+      setThreads((prev) =>
+        prev.map((t) => t.threadId === thread.threadId ? { ...t, unreadCount: 0 } : t),
+      );
+    } catch { /* silently ignore */ }
+    finally { setThreadMessagesLoading(false); }
+  }, []);
+
+  const handleSendAgentMessage = useCallback(async () => {
+    if (!activeThread || !messageText.trim()) return;
+    const content = messageText.trim();
+    const recipientId =
+      user?.userId === activeThread.participantOneId
+        ? activeThread.participantTwoId
+        : activeThread.participantOneId;
+    setMsgSendLoading(true);
+    try {
+      const msg = await messageService.sendMessage({ recipientId, listingId: activeThread.listingId, content });
+      setThreadMessages((prev) => [...prev, msg]);
+      setMessageText('');
+    } catch { /* silently ignore */ }
+    finally { setMsgSendLoading(false); }
+  }, [activeThread, messageText, user]);
+
+  const showToast = useCallback((message: string, type: 'error' | 'success' | 'warning' = 'error') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ message, type });
+    toastTimerRef.current = setTimeout(() => setToast(null), 5000);
+  }, []);
+
+  const showConfirm = useCallback((
+    message: string,
+    confirmLabel: string,
+    variant: 'danger' | 'primary',
+    onConfirm: () => void,
+  ) => setConfirmDialog({ message, confirmLabel, variant, onConfirm }), []);
+
+  const toUserMessage = useCallback((err: unknown, fallback: string): string => {
+    if (err instanceof ApiRequestError && (err.statusCode === 400 || err.statusCode === 422))
+      return err.apiError.message;
+    return fallback;
+  }, []);
 
   const handleMarkAsRead = useCallback(async (notificationId: number) => {
     try {
@@ -294,7 +334,6 @@ export default function AgentDashboardPage() {
 
   const getListingStatusConfig = (status: ListingStatus) => {
     switch (status) {
-      case 'pending_assignment':    return { label: 'Pending Assignment',   color: 'bg-yellow-100 text-yellow-700 border-yellow-300', icon: Clock };
       case 'pending_review':        return { label: 'Pending Review',        color: 'bg-blue-100 text-blue-700 border-blue-300',       icon: Eye };
       case 'corrections_requested': return { label: 'Corrections Requested', color: 'bg-orange-100 text-orange-700 border-orange-300', icon: AlertCircle };
       case 'active':                return { label: 'Active',                color: 'bg-green-100 text-green-700 border-green-300',    icon: CheckCircle };
@@ -314,51 +353,103 @@ export default function AgentDashboardPage() {
 
   const getTransactionStatusConfig = (status: TransactionStatus) => {
     switch (status) {
-      case 'offer_accepted':        return { label: 'Offer Accepted',        color: 'bg-green-100 text-green-700 border-green-300',   icon: CheckCircle };
-      case 'inspection_scheduled':  return { label: 'Inspection Scheduled',  color: 'bg-blue-100 text-blue-700 border-blue-300',      icon: Calendar };
-      case 'inspection_completed':  return { label: 'Inspection Completed',  color: 'bg-purple-100 text-purple-700 border-purple-300',icon: ClipboardCheck };
-      case 'ready_to_close':        return { label: 'Ready to Close',        color: 'bg-orange-100 text-orange-700 border-orange-300',icon: AlertCircle };
-      case 'closed':                return { label: 'Closed',                color: 'bg-gray-100 text-gray-700 border-gray-300',      icon: XCircle };
+      case 'offer_accepted':        return { label: 'Offer Accepted',        color: 'bg-green-100 text-green-700 border-green-300',    icon: CheckCircle };
+      case 'inspection_scheduled':  return { label: 'Inspection Scheduled',  color: 'bg-blue-100 text-blue-700 border-blue-300',       icon: Calendar };
+      case 'inspection_completed':  return { label: 'Inspection Completed',  color: 'bg-purple-100 text-purple-700 border-purple-300', icon: ClipboardCheck };
+      case 'ready_to_close':        return { label: 'Ready to Close',        color: 'bg-orange-100 text-orange-700 border-orange-300', icon: AlertCircle };
+      case 'closed':                return { label: 'Closed',                color: 'bg-gray-100 text-gray-700 border-gray-300',       icon: XCircle };
     }
   };
 
   const resetTabs = () => { setSelectedListing(null); setSelectedOffer(null); };
 
-  const handleAcceptAssignment   = (a: ListingAssignment) => console.log('Accepting assignment:', a.id);
-  const handleDeclineAssignment  = (a: ListingAssignment) => { if (window.confirm(`Decline "${a.title}"?`)) console.log('Declining:', a.id); };
-  const handleApproveListing     = (l: ListingAssignment) => console.log('Approving listing:', l.id);
-  const handleRequestCorrections = (l: ListingAssignment) => { if (!correctionNote) { alert('Please provide a correction note.'); return; } console.log('Corrections:', { listingId: l.id, note: correctionNote }); setCorrectionNote(''); };
-
-  const handleAcceptOffer = async (o: Offer) => {
-    if (!window.confirm(`Accept offer of ${formatPrice(o.proposedPrice)} from ${o.buyerName}?`)) return;
+  const handleAcceptAssignment = async (a: ListingAssignment) => {
     setActionLoading(true);
     try {
-      await offerService.acceptOffer(o.id);
-      await loadOffers();
-      setSelectedOffer(null);
+      await listingService.respondToAssignment(a.listingId, true);
+      showToast('Assignment accepted successfully.', 'success');
+      await loadData();
     } catch (err) {
-      alert(err instanceof ApiRequestError ? err.apiError.message : 'Failed to accept offer.');
+      showToast(toUserMessage(err, 'Failed to accept the assignment. Please try again.'));
     } finally { setActionLoading(false); }
   };
 
-  const handleDeclineOffer = async (o: Offer) => {
-    if (!window.confirm(`Decline offer from ${o.buyerName}?`)) return;
+  const handleDeclineAssignment = (a: ListingAssignment) => {
+    showConfirm(`Decline the assignment for "${a.title}"?`, 'Decline', 'danger', async () => {
+      setActionLoading(true);
+      try {
+        await listingService.respondToAssignment(a.listingId, false);
+        await loadData();
+      } catch (err) {
+        showToast(toUserMessage(err, 'Failed to decline the assignment. Please try again.'));
+      } finally { setActionLoading(false); }
+    });
+  };
+
+  const handleApproveListing = (l: ListingAssignment) => {
+    showConfirm(`Approve "${l.title}" and publish it as Active?`, 'Approve', 'primary', async () => {
+      setActionLoading(true);
+      try {
+        await listingService.approveListing(l.listingId);
+        showToast('Listing approved and published successfully.', 'success');
+        await loadData();
+        setSelectedListing(null);
+      } catch (err) {
+        showToast(toUserMessage(err, 'Failed to approve the listing. Please try again.'));
+      } finally { setActionLoading(false); }
+    });
+  };
+
+  const handleRequestCorrections = async (l: ListingAssignment) => {
+    if (!correctionNote.trim()) {
+      showToast('Please describe what corrections are needed before submitting.', 'warning');
+      return;
+    }
     setActionLoading(true);
     try {
-      await offerService.declineOffer(o.id);
-      await loadOffers();
-      setSelectedOffer(null);
+      await listingService.requestCorrections(l.listingId, correctionNote);
+      showToast('Correction request sent to the property owner.', 'success');
+      await loadData();
+      setCorrectionNote('');
+      setSelectedListing(null);
     } catch (err) {
-      alert(err instanceof ApiRequestError ? err.apiError.message : 'Failed to decline offer.');
+      showToast(toUserMessage(err, 'Failed to send correction request. Please try again.'));
     } finally { setActionLoading(false); }
+  };
+
+  const handleAcceptOffer = (o: Offer) => {
+    showConfirm(`Accept the offer of ${formatPrice(o.proposedPrice)} from ${o.buyerName}?`, 'Accept Offer', 'primary', async () => {
+      setActionLoading(true);
+      try {
+        await offerService.acceptOffer(o.id);
+        showToast('Offer accepted successfully.', 'success');
+        await loadData();
+        setSelectedOffer(null);
+      } catch (err) {
+        showToast(toUserMessage(err, 'Failed to accept the offer. Please try again.'));
+      } finally { setActionLoading(false); }
+    });
+  };
+
+  const handleDeclineOffer = (o: Offer) => {
+    showConfirm(`Decline the offer from ${o.buyerName}?`, 'Decline', 'danger', async () => {
+      setActionLoading(true);
+      try {
+        await offerService.declineOffer(o.id);
+        await loadData();
+        setSelectedOffer(null);
+      } catch (err) {
+        showToast(toUserMessage(err, 'Failed to decline the offer. Please try again.'));
+      } finally { setActionLoading(false); }
+    });
   };
 
   const handleCounterOffer = async (o: Offer) => {
     const price = parseFloat(counterAmount.replace(/,/g, ''));
-    if (isNaN(price) || price <= 0) { alert('Please provide a valid counter amount.'); return; }
-    if (!counterMessage) { alert('Please provide a message for the buyer.'); return; }
-    if (!counterDeadline) { alert('Please set a response deadline.'); return; }
-    if (o.currentRound >= o.maxRounds) { alert('Maximum negotiation rounds (3) reached.'); return; }
+    if (isNaN(price) || price <= 0) { showToast('Please enter a valid counter amount.', 'warning'); return; }
+    if (!counterMessage.trim()) { showToast('Please add a message for the buyer.', 'warning'); return; }
+    if (!counterDeadline) { showToast('Please set a response deadline.', 'warning'); return; }
+    if (o.currentRound >= o.maxRounds) { showToast('Maximum negotiation rounds reached. You must accept or decline.', 'warning'); return; }
     setActionLoading(true);
     try {
       await offerService.counterOffer(o.id, {
@@ -366,18 +457,34 @@ export default function AgentDashboardPage() {
         responseDeadline: new Date(counterDeadline).toISOString(),
         message: counterMessage,
       });
-      await loadOffers();
+      showToast('Counter offer sent to the buyer.', 'success');
+      await loadData();
       setCounterAmount('');
       setCounterMessage('');
       setCounterDeadline('');
       setSelectedOffer(null);
     } catch (err) {
-      alert(err instanceof ApiRequestError ? err.apiError.message : 'Failed to send counter offer.');
+      showToast(toUserMessage(err, 'Failed to send the counter offer. Please try again.'));
     } finally { setActionLoading(false); }
   };
 
-  const handleAssignInspector    = (i: PropertyInspector, date: string) => { console.log('Assigning inspector:', { inspectorId: i.id, date }); setShowInspectorModal(false); };
-  const handleCloseTransaction   = (t: Transaction) => { if (!t.canClose) { alert('Transaction cannot be closed yet.'); return; } if (window.confirm(`Close transaction for "${t.listingTitle}"?`)) console.log('Closing transaction:', t.id); };
+  const handleAssignInspector = (i: PropertyInspector, date: string) => { console.log('Assigning inspector:', { inspectorId: i.id, date }); setShowInspectorModal(false); };
+  const handleCloseTransaction = (t: Transaction) => {
+    if (!t.canClose) { showToast('This transaction cannot be closed yet. All steps must be completed first.', 'warning'); return; }
+    showConfirm(`Close the transaction for "${t.listingTitle}"?`, 'Close Transaction', 'primary', () => {
+      console.log('Closing transaction:', t.id);
+    });
+  };
+
+  const userInitials = `${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}` || 'AG';
+  const userFullName = user ? `${user.firstName} ${user.lastName}` : 'Agent';
+  const userEmail = user?.emailAddress ?? '';
+
+  const pendingAssignments = assignments.filter(a => a.assignmentStatus === 'pending');
+  const acceptedAssignments = assignments.filter(a => a.assignmentStatus === 'accepted');
+  const reviewableListings = assignments.filter(
+    a => a.listingStatus === 'pending_review' || a.listingStatus === 'corrections_requested',
+  );
 
   const Sidebar = () => (
     <div className="h-full bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 flex flex-col shadow-2xl">
@@ -398,10 +505,12 @@ export default function AgentDashboardPage() {
       {/* User Profile */}
       <div className="p-6 border-b border-blue-500/30">
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-blue-600 text-lg font-bold shadow-lg">SA</div>
+          <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-blue-600 text-lg font-bold shadow-lg">
+            {userInitials}
+          </div>
           <div>
-            <p className="font-bold text-white">Sarah Anderson</p>
-            <p className="text-sm text-blue-200">sarah.a@email.com</p>
+            <p className="font-bold text-white">{userFullName}</p>
+            <p className="text-sm text-blue-200">{userEmail}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/30 rounded-lg">
@@ -413,21 +522,18 @@ export default function AgentDashboardPage() {
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-2">
         {[
-          { tab: 'dashboard',     icon: <Home size={20} />,          label: 'Dashboard' },
-          { tab: 'assignments',   icon: <UserCheck size={20} />,     label: 'Assignments',
-            count: mockAssignments.filter(a => a.assignmentStatus === 'pending').length,
-            countColor: 'bg-yellow-500' },
-          { tab: 'listings',      icon: <Building size={20} />,      label: 'Listing Review',
-            count: mockAssignments.filter(a => a.assignmentStatus === 'accepted').length },
-          { tab: 'offers',        icon: <FileText size={20} />,      label: 'Offer Management',
+          { tab: 'dashboard',     icon: <Home size={20} />,           label: 'Dashboard' },
+          { tab: 'assignments',   icon: <UserCheck size={20} />,      label: 'Assignments',
+            count: pendingAssignments.length, countColor: 'bg-yellow-500' },
+          { tab: 'listings',      icon: <Building size={20} />,       label: 'Listing Review',
+            count: reviewableListings.length },
+          { tab: 'offers',        icon: <FileText size={20} />,       label: 'Offer Management',
             count: offers.filter(o => o.status === 'pending' || o.status === 'countered').length },
-          { tab: 'transactions',  icon: <ClipboardCheck size={20} />,label: 'Transactions' },
-          { tab: 'messages',      icon: <MessageSquare size={20} />, label: 'Messages',
-            count: mockConversations.reduce((s, c) => s + c.unreadCount, 0),
-            countColor: 'bg-red-500' },
-          { tab: 'notifications', icon: <Bell size={20} />,          label: 'Notifications',
-            count: notifications.filter(n => !n.isRead).length,
-            countColor: 'bg-red-500' },
+          { tab: 'transactions',  icon: <ClipboardCheck size={20} />, label: 'Transactions' },
+          { tab: 'messages',      icon: <MessageSquare size={20} />,  label: 'Messages',
+            count: threads.reduce((s, t) => s + t.unreadCount, 0), countColor: 'bg-red-500' },
+          { tab: 'notifications', icon: <Bell size={20} />,           label: 'Notifications',
+            count: notifications.filter(n => !n.isRead).length, countColor: 'bg-red-500' },
         ].map(({ tab, icon, label, count, countColor }) => (
           <button
             key={tab}
@@ -461,6 +567,50 @@ export default function AgentDashboardPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-200 via-gray-100 to-gray-200 flex">
+
+      {/* ── Toast ── */}
+      {toast && (
+        <div className={`fixed top-6 right-6 z-[300] flex items-start gap-3 px-5 py-4 rounded-2xl shadow-2xl border max-w-sm transition-all ${
+          toast.type === 'error'   ? 'bg-red-50 border-red-200 text-red-900' :
+          toast.type === 'success' ? 'bg-green-50 border-green-200 text-green-900' :
+                                     'bg-amber-50 border-amber-200 text-amber-900'
+        }`}>
+          {toast.type === 'error'   && <XCircle    size={20} className="text-red-500 flex-shrink-0 mt-0.5" />}
+          {toast.type === 'success' && <CheckCircle size={20} className="text-green-500 flex-shrink-0 mt-0.5" />}
+          {toast.type === 'warning' && <AlertCircle size={20} className="text-amber-500 flex-shrink-0 mt-0.5" />}
+          <p className="text-sm font-semibold flex-1 leading-snug">{toast.message}</p>
+          <button onClick={() => setToast(null)} className="flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity ml-1">
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* ── Confirm Dialog ── */}
+      {confirmDialog && (
+        <div className="fixed inset-0 bg-black/40 z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full border border-gray-100">
+            <p className="text-gray-900 font-semibold text-base mb-6 leading-snug">{confirmDialog.message}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(null); }}
+                className={`flex-1 py-3 font-bold rounded-xl transition-colors ${
+                  confirmDialog.variant === 'danger'
+                    ? 'bg-red-600 text-white hover:bg-red-700'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                {confirmDialog.confirmLabel}
+              </button>
+              <button
+                onClick={() => setConfirmDialog(null)}
+                className="flex-1 py-3 bg-white text-gray-700 font-bold rounded-xl border-2 border-gray-200 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div className="lg:hidden fixed inset-0 bg-black/50 z-40" onClick={() => setSidebarOpen(false)}>
@@ -518,10 +668,14 @@ export default function AgentDashboardPage() {
               {/* Stats */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
-                  { label: 'Pending Assignments', value: mockAssignments.filter(a => a.assignmentStatus === 'pending').length,                           sub: 'Awaiting response', icon: <UserCheck className="text-yellow-500" size={24} /> },
-                  { label: 'Active Listings',     value: mockAssignments.filter(a => a.listingStatus === 'active').length,                              sub: `Total: ${mockAssignments.filter(a => a.assignmentStatus === 'accepted').length}`, icon: <Building className="text-green-500" size={24} /> },
-                  { label: 'Pending Offers',      value: offers.filter(o => o.status === 'pending' || o.status === 'countered').length,             sub: 'Require action',    icon: <FileText className="text-blue-500" size={24} /> },
-                  { label: 'Active Transactions', value: mockTransactions.filter(t => t.status !== 'closed').length,                                   sub: 'In progress',       icon: <ClipboardCheck className="text-purple-500" size={24} /> },
+                  { label: 'Pending Assignments', value: pendingAssignments.length,
+                    sub: 'Awaiting response', icon: <UserCheck className="text-yellow-500" size={24} /> },
+                  { label: 'Active Listings', value: assignments.filter(a => a.listingStatus === 'active').length,
+                    sub: `Total: ${acceptedAssignments.length}`, icon: <Building className="text-green-500" size={24} /> },
+                  { label: 'Pending Offers', value: offers.filter(o => o.status === 'pending' || o.status === 'countered').length,
+                    sub: 'Require action', icon: <FileText className="text-blue-500" size={24} /> },
+                  { label: 'Active Transactions', value: mockTransactions.filter(t => t.status !== 'closed').length,
+                    sub: 'In progress', icon: <ClipboardCheck className="text-purple-500" size={24} /> },
                 ].map((stat) => (
                   <div key={stat.label} className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all">
                     <div className="flex items-center justify-between mb-2">
@@ -583,15 +737,24 @@ export default function AgentDashboardPage() {
                       <button onClick={() => setActiveTab('listings')} className="text-sm text-blue-600 hover:text-blue-700 font-semibold">View All</button>
                     </div>
                     <div className="space-y-4">
-                      {mockAssignments.filter(a => a.listingStatus === 'pending_review' || a.listingStatus === 'corrections_requested').slice(0, 2).map((listing) => {
+                      {offersLoading ? (
+                        <div className="flex justify-center py-6"><Loader2 className="animate-spin text-blue-600" size={28} /></div>
+                      ) : reviewableListings.length === 0 ? (
+                        <p className="text-center text-gray-500 py-6 text-sm">No listings pending review.</p>
+                      ) : null}
+                      {reviewableListings.slice(0, 2).map((listing) => {
                         const sc = getListingStatusConfig(listing.listingStatus);
                         const Icon = sc.icon;
                         return (
                           <div key={listing.id} className="p-4 bg-gray-50 rounded-xl border border-gray-200">
                             <div className="flex gap-4">
                               <div className="w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden">
-                                <img src={listing.image} alt={listing.title} className="w-full h-full object-cover"
-                                  onError={(e) => ((e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg')} />
+                                <img
+                                  src={listing.photos[0]?.photoUrl ?? '/images/property-placeholder.jpg'}
+                                  alt={listing.title}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => ((e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg')}
+                                />
                               </div>
                               <div className="flex-1 min-w-0">
                                 <h3 className="font-bold text-gray-900 mb-1">{listing.title}</h3>
@@ -618,16 +781,17 @@ export default function AgentDashboardPage() {
                   </div>
                   <div className="space-y-3 max-h-[600px] overflow-y-auto">
                     {notifications.slice(0, 5).map((n) => (
-                      <div key={n.notificationId} onClick={() => handleMarkAsRead(n.notificationId)} className={`p-3 rounded-xl border cursor-pointer ${n.isRead ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
+                      <div key={n.notificationId} onClick={() => handleMarkAsRead(n.notificationId)}
+                        className={`p-3 rounded-xl border cursor-pointer ${n.isRead ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
                         <div className="flex items-start gap-3">
                           <div className={`p-2 rounded-lg ${n.type === 'OfferResponse' ? 'bg-blue-100' : n.type === 'ListingStatus' ? 'bg-green-100' : n.type === 'InspectionUpdate' ? 'bg-purple-100' : n.type === 'DisputeUpdate' ? 'bg-red-100' : n.type === 'MessageReceived' ? 'bg-gray-100' : 'bg-blue-100'}`}>
-                            {n.type === 'OfferResponse'    && <FileText    size={16} className="text-blue-600" />}
-                            {n.type === 'ListingStatus'    && <CheckCircle size={16} className="text-green-600" />}
+                            {n.type === 'OfferResponse'    && <FileText       size={16} className="text-blue-600" />}
+                            {n.type === 'ListingStatus'    && <CheckCircle    size={16} className="text-green-600" />}
                             {n.type === 'InspectionUpdate' && <ClipboardCheck size={16} className="text-purple-600" />}
-                            {n.type === 'DisputeUpdate'    && <AlertCircle size={16} className="text-red-600" />}
-                            {n.type === 'MessageReceived'  && <MessageSquare size={16} className="text-gray-600" />}
-                            {n.type === 'AccountDecision'  && <UserCheck   size={16} className="text-green-600" />}
-                            {n.type === 'TransactionClosed'&& <CheckCircle size={16} className="text-blue-600" />}
+                            {n.type === 'DisputeUpdate'    && <AlertCircle    size={16} className="text-red-600" />}
+                            {n.type === 'MessageReceived'  && <MessageSquare  size={16} className="text-gray-600" />}
+                            {n.type === 'AccountDecision'  && <UserCheck      size={16} className="text-green-600" />}
+                            {n.type === 'TransactionClosed'&& <CheckCircle    size={16} className="text-blue-600" />}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold text-gray-900 mb-1">{n.title}</p>
@@ -647,95 +811,137 @@ export default function AgentDashboardPage() {
           {/* ── Assignments Tab ── */}
           {activeTab === 'assignments' && (
             <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
-              <p className="text-gray-700 font-semibold mb-6">
-                You have {mockAssignments.filter(a => a.assignmentStatus === 'pending').length} pending assignment requests
-              </p>
-              <div className="space-y-6">
-                {mockAssignments.filter(a => a.assignmentStatus === 'pending').map((assignment) => (
-                  <div key={assignment.id} className="p-6 bg-gray-50 rounded-2xl border border-gray-200">
-                    <div className="flex gap-6 mb-4">
-                      <div className="w-32 h-32 flex-shrink-0 rounded-xl overflow-hidden">
-                        <img src={assignment.image} alt={assignment.title} className="w-full h-full object-cover"
-                          onError={(e) => ((e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg')} />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-xl font-bold text-gray-900 mb-2">{assignment.title}</h3>
-                        <p className="text-gray-600 mb-3 line-clamp-2">{assignment.description}</p>
-                        <div className="grid grid-cols-2 gap-4 mb-3">
-                          <div className="flex items-center gap-2 text-gray-600"><MapPin size={16} /><span className="text-sm">{assignment.location}</span></div>
-                          <div className="flex items-center gap-2"><span className="text-sm text-gray-600">Owner:</span><span className="text-sm font-semibold text-gray-900">{assignment.ownerName}</span></div>
+              {offersLoading ? (
+                <div className="flex justify-center py-16"><Loader2 className="animate-spin text-blue-600" size={40} /></div>
+              ) : (
+                <>
+                  <p className="text-gray-700 font-semibold mb-6">
+                    You have {pendingAssignments.length} pending assignment request{pendingAssignments.length !== 1 ? 's' : ''}
+                  </p>
+                  <div className="space-y-6">
+                    {pendingAssignments.map((assignment) => (
+                      <div key={assignment.id} className="p-6 bg-gray-50 rounded-2xl border border-gray-200">
+                        <div className="flex gap-6 mb-4">
+                          <div className="w-32 h-32 flex-shrink-0 rounded-xl overflow-hidden">
+                            <img
+                              src={assignment.photos[0]?.photoUrl ?? '/images/property-placeholder.jpg'}
+                              alt={assignment.title}
+                              className="w-full h-full object-cover"
+                              onError={(e) => ((e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg')}
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="text-xl font-bold text-gray-900 mb-2">{assignment.title}</h3>
+                            <p className="text-gray-600 mb-3 line-clamp-2">{assignment.description}</p>
+                            <div className="grid grid-cols-2 gap-4 mb-3">
+                              <div className="flex items-center gap-2 text-gray-600">
+                                <MapPin size={16} /><span className="text-sm">{assignment.location}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-600">Owner:</span>
+                                <span className="text-sm font-semibold text-gray-900">{assignment.ownerName}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <span className="text-sm text-gray-600">{assignment.propertyType} — {assignment.listingType}</span>
+                              <div className="ml-auto">
+                                <p className="text-2xl font-bold text-blue-600">{formatPrice(assignment.price)}</p>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-1.5 text-gray-700"><Bed    size={18} className="text-blue-600" /><span className="text-sm font-semibold">{assignment.bedrooms}</span></div>
-                          <div className="flex items-center gap-1.5 text-gray-700"><Bath   size={18} className="text-blue-600" /><span className="text-sm font-semibold">{assignment.bathrooms}</span></div>
-                          <div className="flex items-center gap-1.5 text-gray-700"><Square size={18} className="text-blue-600" /><span className="text-sm font-semibold">{assignment.area} sq ft</span></div>
-                          <div className="ml-auto"><p className="text-2xl font-bold text-blue-600">{formatPrice(assignment.price)}</p></div>
+                        <div className="pt-4 border-t border-gray-200">
+                          <p className="text-sm text-gray-600 mb-4">Requested on: {assignment.assignedDate}</p>
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => handleAcceptAssignment(assignment)}
+                              disabled={actionLoading}
+                              className="flex-1 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                              {actionLoading ? <Loader2 size={20} className="animate-spin" /> : <Check size={20} />}
+                              Accept Assignment
+                            </button>
+                            <button
+                              onClick={() => handleDeclineAssignment(assignment)}
+                              disabled={actionLoading}
+                              className="flex-1 py-3 bg-white text-red-600 font-bold rounded-xl border-2 border-red-200 hover:bg-red-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                              <XIcon size={20} /> Decline
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="pt-4 border-t border-gray-200">
-                      <p className="text-sm text-gray-600 mb-4">Requested on: {assignment.assignedDate}</p>
-                      <div className="flex gap-3">
-                        <button onClick={() => handleAcceptAssignment(assignment)} className="flex-1 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors flex items-center justify-center gap-2">
-                          <Check size={20} /> Accept Assignment
-                        </button>
-                        <button onClick={() => handleDeclineAssignment(assignment)} className="flex-1 py-3 bg-white text-red-600 font-bold rounded-xl border-2 border-red-200 hover:bg-red-50 transition-colors flex items-center justify-center gap-2">
-                          <XIcon size={20} /> Decline
-                        </button>
+                    ))}
+                    {pendingAssignments.length === 0 && (
+                      <div className="text-center py-12">
+                        <UserCheck className="mx-auto text-gray-400 mb-4" size={48} />
+                        <p className="text-gray-600 font-semibold">No pending assignments</p>
+                        <p className="text-sm text-gray-500">New assignment requests will appear here</p>
                       </div>
-                    </div>
+                    )}
                   </div>
-                ))}
-                {mockAssignments.filter(a => a.assignmentStatus === 'pending').length === 0 && (
-                  <div className="text-center py-12">
-                    <UserCheck className="mx-auto text-gray-400 mb-4" size={48} />
-                    <p className="text-gray-600 font-semibold">No pending assignments</p>
-                    <p className="text-sm text-gray-500">New assignment requests will appear here</p>
-                  </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
           )}
 
           {/* ── Listing Review List ── */}
           {activeTab === 'listings' && !selectedListing && (
             <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
-              <p className="text-gray-700 font-semibold mb-6">
-                You have {mockAssignments.filter(a => a.assignmentStatus === 'accepted').length} assigned listings
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {mockAssignments.filter(a => a.assignmentStatus === 'accepted').map((listing) => {
-                  const sc = getListingStatusConfig(listing.listingStatus);
-                  const Icon = sc.icon;
-                  return (
-                    <div key={listing.id} className="bg-gray-50 rounded-2xl overflow-hidden border border-gray-200 hover:shadow-xl transition-all">
-                      <div className="relative h-48 overflow-hidden">
-                        <img src={listing.image} alt={listing.title} className="w-full h-full object-cover"
-                          onError={(e) => ((e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg')} />
-                        <div className="absolute top-3 right-3">
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border backdrop-blur-sm ${sc.color}`}>
-                            <Icon size={14} />{sc.label}
-                          </span>
+              {offersLoading ? (
+                <div className="flex justify-center py-16"><Loader2 className="animate-spin text-blue-600" size={40} /></div>
+              ) : (
+                <>
+                  <p className="text-gray-700 font-semibold mb-6">
+                    You have {acceptedAssignments.length} assigned listing{acceptedAssignments.length !== 1 ? 's' : ''}
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {acceptedAssignments.map((listing) => {
+                      const sc = getListingStatusConfig(listing.listingStatus);
+                      const Icon = sc.icon;
+                      return (
+                        <div key={listing.id} className="bg-gray-50 rounded-2xl overflow-hidden border border-gray-200 hover:shadow-xl transition-all">
+                          <div className="relative h-48 overflow-hidden">
+                            <img
+                              src={listing.photos[0]?.photoUrl ?? '/images/property-placeholder.jpg'}
+                              alt={listing.title}
+                              className="w-full h-full object-cover"
+                              onError={(e) => ((e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg')}
+                            />
+                            <div className="absolute top-3 right-3">
+                              <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border backdrop-blur-sm ${sc.color}`}>
+                                <Icon size={14} />{sc.label}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="p-5">
+                            <p className="text-2xl font-bold text-blue-600 mb-2">{formatPrice(listing.price)}</p>
+                            <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-1">{listing.title}</h3>
+                            <div className="flex items-center gap-2 text-gray-600 mb-3">
+                              <MapPin size={16} /><span className="text-sm line-clamp-1">{listing.location}</span>
+                            </div>
+                            <p className="text-sm text-gray-600 mb-1">{listing.propertyType} — {listing.listingType}</p>
+                            <p className="text-sm text-gray-600 mb-4">Owner: {listing.ownerName}</p>
+                            <button
+                              onClick={() => setSelectedListing(listing)}
+                              className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                            >
+                              <Eye size={18} /> Review Listing
+                            </button>
+                          </div>
                         </div>
+                      );
+                    })}
+                    {acceptedAssignments.length === 0 && (
+                      <div className="col-span-3 text-center py-12">
+                        <Building className="mx-auto text-gray-400 mb-4" size={48} />
+                        <p className="text-gray-600 font-semibold">No assigned listings yet</p>
+                        <p className="text-sm text-gray-500">Accept an assignment to see listings here</p>
                       </div>
-                      <div className="p-5">
-                        <p className="text-2xl font-bold text-blue-600 mb-2">{formatPrice(listing.price)}</p>
-                        <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-1">{listing.title}</h3>
-                        <div className="flex items-center gap-2 text-gray-600 mb-4"><MapPin size={16} /><span className="text-sm line-clamp-1">{listing.location}</span></div>
-                        <div className="flex items-center justify-between py-3 border-t border-b border-gray-200 mb-4">
-                          <div className="flex items-center gap-1.5 text-gray-700"><Bed    size={18} className="text-blue-600" /><span className="text-sm font-semibold">{listing.bedrooms}</span></div>
-                          <div className="flex items-center gap-1.5 text-gray-700"><Bath   size={18} className="text-blue-600" /><span className="text-sm font-semibold">{listing.bathrooms}</span></div>
-                          <div className="flex items-center gap-1.5 text-gray-700"><Square size={18} className="text-blue-600" /><span className="text-sm font-semibold">{listing.area}</span></div>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-4">Owner: {listing.ownerName}</p>
-                        <button onClick={() => setSelectedListing(listing)} className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
-                          <Eye size={18} /> Review Listing
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -746,6 +952,18 @@ export default function AgentDashboardPage() {
                 <ChevronRight size={20} className="rotate-180" /> Back to All Listings
               </button>
               <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+                {/* Photos */}
+                {selectedListing.photos.length > 0 && (
+                  <div className="mb-6 grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {selectedListing.photos.slice(0, 6).map((photo) => (
+                      <div key={photo.photoId} className="aspect-video rounded-xl overflow-hidden">
+                        <img src={photo.photoUrl} alt={selectedListing.title} className="w-full h-full object-cover"
+                          onError={(e) => ((e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg')} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div className="mb-6 pb-6 border-b border-gray-200">
                   <div className="flex items-start justify-between mb-4">
                     <div>
@@ -769,11 +987,10 @@ export default function AgentDashboardPage() {
                       })()}
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="flex flex-wrap gap-4">
                     <div className="flex items-center gap-2 text-gray-600"><MapPin size={16} /><span className="text-sm">{selectedListing.location}</span></div>
-                    <div className="flex items-center gap-2 text-gray-700"><Bed    size={18} className="text-blue-600" /><span className="text-sm font-semibold">{selectedListing.bedrooms} Bedrooms</span></div>
-                    <div className="flex items-center gap-2 text-gray-700"><Bath   size={18} className="text-blue-600" /><span className="text-sm font-semibold">{selectedListing.bathrooms} Bathrooms</span></div>
-                    <div className="flex items-center gap-2 text-gray-700"><Square size={18} className="text-blue-600" /><span className="text-sm font-semibold">{selectedListing.area} sq ft</span></div>
+                    <span className="text-sm text-gray-600">{selectedListing.propertyType}</span>
+                    <span className="text-sm text-gray-600">{selectedListing.listingType}</span>
                   </div>
                 </div>
 
@@ -788,16 +1005,32 @@ export default function AgentDashboardPage() {
                   <div className="space-y-6">
                     <div>
                       <label className="block text-sm font-bold text-gray-900 mb-3">Request Corrections (Optional)</label>
-                      <textarea rows={4} placeholder="Describe what needs to be corrected or improved..." value={correctionNote} onChange={(e) => setCorrectionNote(e.target.value)}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none" />
+                      <textarea
+                        rows={4}
+                        placeholder="Describe what needs to be corrected or improved..."
+                        value={correctionNote}
+                        onChange={(e) => setCorrectionNote(e.target.value)}
+                        maxLength={1000}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                      />
+                      <p className="text-xs text-gray-500 mt-1 text-right">{correctionNote.length}/1000</p>
                     </div>
                     <div className="flex gap-4">
-                      <button onClick={() => handleApproveListing(selectedListing)} className="flex-1 py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors flex items-center justify-center gap-2">
-                        <CheckCircle size={20} /> Approve & Make Active
+                      <button
+                        onClick={() => handleApproveListing(selectedListing)}
+                        disabled={actionLoading}
+                        className="flex-1 py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {actionLoading ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />}
+                        Approve & Make Active
                       </button>
-                      <button onClick={() => handleRequestCorrections(selectedListing)} disabled={!correctionNote}
-                        className="flex-1 py-4 bg-orange-600 text-white font-bold rounded-xl hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                        <AlertCircle size={20} /> Request Corrections
+                      <button
+                        onClick={() => handleRequestCorrections(selectedListing)}
+                        disabled={actionLoading || !correctionNote}
+                        className="flex-1 py-4 bg-orange-600 text-white font-bold rounded-xl hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {actionLoading ? <Loader2 size={20} className="animate-spin" /> : <AlertCircle size={20} />}
+                        Request Corrections
                       </button>
                     </div>
                   </div>
@@ -825,7 +1058,7 @@ export default function AgentDashboardPage() {
                 </div>
               ) : null}
               {offers.length > 0 && (
-              <p className="text-gray-700 font-semibold mb-6">You have {offers.length} offer{offers.length !== 1 ? 's' : ''} to manage</p>
+                <p className="text-gray-700 font-semibold mb-6">You have {offers.length} offer{offers.length !== 1 ? 's' : ''} to manage</p>
               )}
               <div className="space-y-4">
                 {offers.map((offer) => (
@@ -906,7 +1139,7 @@ export default function AgentDashboardPage() {
                             </p>
                             <p className="text-lg font-bold text-blue-600">{formatPrice(round.amount)}</p>
                           </div>
-                          <p className="text-sm text-gray-600 mb-2">"{round.message}"</p>
+                          {round.message && <p className="text-sm text-gray-600 mb-2">"{round.message}"</p>}
                           <p className="text-xs text-gray-500">{round.date}</p>
                         </div>
                       </div>
@@ -1099,66 +1332,111 @@ export default function AgentDashboardPage() {
           {activeTab === 'messages' && (
             <div className="max-w-6xl mx-auto">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Conversation List */}
+                {/* Thread List */}
                 <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-4">
                   <h2 className="text-lg font-bold text-gray-900 mb-4">Conversations</h2>
-                  <div className="space-y-2">
-                    {mockConversations.map((conv) => (
-                      <div key={conv.id} onClick={() => setSelectedConversation(conv)}
-                        className={`p-4 rounded-xl border cursor-pointer transition-all ${selectedConversation?.id === conv.id ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-gray-900 truncate">{conv.participantName}</p>
-                            <p className="text-xs text-gray-600 truncate">{conv.listingTitle}</p>
+                  {threadsLoading ? (
+                    <div className="flex justify-center py-8"><Loader2 className="animate-spin text-blue-600" size={28} /></div>
+                  ) : threads.length === 0 ? (
+                    <div className="text-center py-8">
+                      <MessageSquare className="mx-auto text-gray-400 mb-2" size={36} />
+                      <p className="text-sm text-gray-500">No conversations yet</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {threads.map((thread) => {
+                        const otherName =
+                          user?.userId === thread.participantOneId
+                            ? thread.participantTwoFullName
+                            : thread.participantOneFullName;
+                        const isActive = activeThread?.threadId === thread.threadId;
+                        return (
+                          <div key={thread.threadId} onClick={() => handleSelectThread(thread)}
+                            className={`p-4 rounded-xl border cursor-pointer transition-all ${isActive ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
+                            <div className="flex items-start justify-between mb-1">
+                              <p className="font-bold text-gray-900 truncate flex-1">{otherName}</p>
+                              {thread.unreadCount > 0 && (
+                                <span className="ml-2 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center flex-shrink-0">
+                                  {thread.unreadCount}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-blue-600 font-medium truncate mb-1">{thread.listingTitle}</p>
+                            {thread.lastMessage && (
+                              <p className="text-xs text-gray-500 truncate">{thread.lastMessage.content}</p>
+                            )}
                           </div>
-                          {conv.unreadCount > 0 && (
-                            <span className="ml-2 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center flex-shrink-0">
-                              {conv.unreadCount}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600 truncate mb-1">{conv.lastMessage}</p>
-                        <p className="text-xs text-gray-500">{conv.lastMessageTime}</p>
-                      </div>
-                    ))}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* Chat Area */}
                 <div className="lg:col-span-2">
                   <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-200px)]">
-                    {selectedConversation ? (
+                    {activeThread ? (
                       <>
-                        <div className="p-6 border-b border-gray-200 bg-gray-50">
+                        <div className="p-5 border-b border-gray-200 bg-gray-50">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
-                              {selectedConversation.participantName.charAt(0)}
+                              {(user?.userId === activeThread.participantOneId
+                                ? activeThread.participantTwoFullName
+                                : activeThread.participantOneFullName).charAt(0)}
                             </div>
                             <div>
-                              <p className="font-bold text-gray-900">{selectedConversation.participantName}</p>
-                              <p className="text-sm text-gray-600">{selectedConversation.participantType === 'buyer' ? 'Buyer' : 'Property Owner'} — {selectedConversation.listingTitle}</p>
+                              <p className="font-bold text-gray-900">
+                                {user?.userId === activeThread.participantOneId
+                                  ? activeThread.participantTwoFullName
+                                  : activeThread.participantOneFullName}
+                              </p>
+                              <p className="text-sm text-gray-600">Re: {activeThread.listingTitle}</p>
                             </div>
                           </div>
                         </div>
+
                         <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
-                          <div className="flex gap-3">
-                            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                              {selectedConversation.participantName.charAt(0)}
-                            </div>
-                            <div className="flex-1">
-                              <div className="bg-white rounded-2xl rounded-tl-none p-4 border border-gray-200 shadow-sm">
-                                <p className="text-sm text-gray-900">{selectedConversation.lastMessage}</p>
-                              </div>
-                              <p className="text-xs text-gray-500 mt-1 ml-1">{selectedConversation.lastMessageTime}</p>
-                            </div>
-                          </div>
+                          {threadMessagesLoading ? (
+                            <div className="flex justify-center py-8"><Loader2 className="animate-spin text-blue-600" size={28} /></div>
+                          ) : threadMessages.length === 0 ? (
+                            <p className="text-center text-sm text-gray-500 py-8">No messages yet. Send the first one!</p>
+                          ) : (
+                            threadMessages.map((msg) => {
+                              const isMine = msg.senderId === user?.userId;
+                              return (
+                                <div key={msg.messageId} className={`flex gap-3 ${isMine ? 'justify-end' : ''}`}>
+                                  {!isMine && (
+                                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                                      {msg.senderFullName.charAt(0)}
+                                    </div>
+                                  )}
+                                  <div className={`max-w-[70%] ${isMine ? 'items-end' : 'items-start'} flex flex-col`}>
+                                    <div className={`p-4 rounded-2xl shadow-sm ${isMine ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white border border-gray-200 rounded-tl-none'}`}>
+                                      <p className="text-sm">{msg.content}</p>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1 px-1">
+                                      {new Date(msg.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                  </div>
+                                  {isMine && (
+                                    <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                                      {userInitials}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })
+                          )}
                         </div>
-                        <div className="p-6 border-t border-gray-200 bg-white">
-                          <form className="flex gap-3" onSubmit={(e) => { e.preventDefault(); if (messageText.trim()) { console.log('Sending:', messageText); setMessageText(''); } }}>
-                            <input type="text" placeholder="Type your message..." value={messageText} onChange={(e) => setMessageText(e.target.value)}
+
+                        <div className="p-5 border-t border-gray-200 bg-white">
+                          <form className="flex gap-3" onSubmit={(e) => { e.preventDefault(); handleSendAgentMessage(); }}>
+                            <input type="text" placeholder="Type your message…" value={messageText}
+                              onChange={(e) => setMessageText(e.target.value)}
                               className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                            <button type="submit" className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2">
-                              <Send size={20} /> Send
+                            <button type="submit" disabled={msgSendLoading || !messageText.trim()}
+                              className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50">
+                              {msgSendLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />} Send
                             </button>
                           </form>
                         </div>
@@ -1168,7 +1446,7 @@ export default function AgentDashboardPage() {
                         <div className="text-center">
                           <MessageSquare className="mx-auto text-gray-400 mb-4" size={48} />
                           <p className="text-gray-600 font-semibold">Select a conversation</p>
-                          <p className="text-sm text-gray-500">Choose a conversation to start messaging</p>
+                          <p className="text-sm text-gray-500">Conversations with property owners and buyers appear here</p>
                         </div>
                       </div>
                     )}
@@ -1187,16 +1465,17 @@ export default function AgentDashboardPage() {
                 </p>
                 <div className="space-y-3">
                   {notifications.map((n) => (
-                    <div key={n.notificationId} onClick={() => handleMarkAsRead(n.notificationId)} className={`p-5 rounded-xl border transition-all cursor-pointer ${n.isRead ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
+                    <div key={n.notificationId} onClick={() => handleMarkAsRead(n.notificationId)}
+                      className={`p-5 rounded-xl border transition-all cursor-pointer ${n.isRead ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
                       <div className="flex items-start gap-4">
                         <div className={`p-3 rounded-lg ${n.type === 'OfferResponse' ? 'bg-blue-100' : n.type === 'ListingStatus' ? 'bg-green-100' : n.type === 'InspectionUpdate' ? 'bg-purple-100' : n.type === 'DisputeUpdate' ? 'bg-red-100' : n.type === 'MessageReceived' ? 'bg-gray-100' : 'bg-blue-100'}`}>
-                          {n.type === 'OfferResponse'    && <FileText    size={16} className="text-blue-600" />}
-                          {n.type === 'ListingStatus'    && <CheckCircle size={16} className="text-green-600" />}
+                          {n.type === 'OfferResponse'    && <FileText       size={16} className="text-blue-600" />}
+                          {n.type === 'ListingStatus'    && <CheckCircle    size={16} className="text-green-600" />}
                           {n.type === 'InspectionUpdate' && <ClipboardCheck size={16} className="text-purple-600" />}
-                          {n.type === 'DisputeUpdate'    && <AlertCircle size={16} className="text-red-600" />}
-                          {n.type === 'MessageReceived'  && <MessageSquare size={16} className="text-gray-600" />}
-                          {n.type === 'AccountDecision'  && <UserCheck   size={16} className="text-green-600" />}
-                          {n.type === 'TransactionClosed'&& <CheckCircle size={16} className="text-blue-600" />}
+                          {n.type === 'DisputeUpdate'    && <AlertCircle    size={16} className="text-red-600" />}
+                          {n.type === 'MessageReceived'  && <MessageSquare  size={16} className="text-gray-600" />}
+                          {n.type === 'AccountDecision'  && <UserCheck      size={16} className="text-green-600" />}
+                          {n.type === 'TransactionClosed'&& <CheckCircle    size={16} className="text-blue-600" />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-lg font-bold text-gray-900 mb-2">{n.title}</p>

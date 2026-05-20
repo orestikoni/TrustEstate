@@ -111,3 +111,35 @@ export interface PostInspectionOptionsDto {
   canWithdraw: boolean;
   canRevise: boolean;
 }
+
+// ─── Messages ─────────────────────────────────────────────────────────────────
+
+export interface MessageDto {
+  messageId: number;
+  senderId: number;
+  senderFullName: string;
+  receiverId: number;
+  threadId: number;
+  content: string;
+  isRead: boolean;
+  sentAt: string;
+}
+
+export interface MessageThreadDto {
+  threadId: number;
+  listingId: number;
+  listingTitle: string;
+  participantOneId: number;
+  participantOneFullName: string;
+  participantTwoId: number;
+  participantTwoFullName: string;
+  createdAt: string;
+  lastMessage: MessageDto | null;
+  unreadCount: number;
+}
+
+export interface SendMessageRequest {
+  recipientId: number;
+  listingId: number;
+  content: string;
+}

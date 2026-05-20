@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import { MapPin, Bed, Bath, Square, Heart } from 'lucide-react';
 
 export interface Property {
@@ -18,12 +19,14 @@ interface PropertyCardProps {
   property: Property;
   onSave?: (id: number) => void;
   isSaved?: boolean;
+  href?: string;
 }
 
 export const PropertyCard: React.FC<PropertyCardProps> = ({
   property,
   onSave,
   isSaved = false,
+  href,
 }) => {
   const formatPrice = (price: number, forRent?: boolean) =>
     new Intl.NumberFormat('en-US', {
@@ -32,8 +35,8 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
       minimumFractionDigits: 0,
     }).format(price) + (forRent ? '/mo' : '');
 
-  return (
-    <div className="group bg-white rounded-2xl overflow-hidden border border-gray-200 shadow-md hover:shadow-xl transition-all hover:-translate-y-1 duration-300">
+  const cardContent = (
+    <>
       {/* Image */}
       <div className="relative h-52 overflow-hidden">
         <img
@@ -52,9 +55,9 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
           </span>
         )}
 
-        {/* Save / Heart Button */}
+        {/* Save / Heart Button — stops propagation so the link doesn't fire */}
         <button
-          onClick={() => onSave?.(property.id)}
+          onClick={(e) => { e.preventDefault(); onSave?.(property.id); }}
           className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-sm rounded-full shadow hover:bg-white transition-all"
           aria-label={isSaved ? 'Unsave property' : 'Save property'}
         >
@@ -97,6 +100,19 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
+
+  const wrapperClass =
+    'group bg-white rounded-2xl overflow-hidden border border-gray-200 shadow-md hover:shadow-xl transition-all hover:-translate-y-1 duration-300';
+
+  if (href) {
+    return (
+      <Link href={href} className={wrapperClass}>
+        {cardContent}
+      </Link>
+    );
+  }
+
+  return <div className={wrapperClass}>{cardContent}</div>;
 };

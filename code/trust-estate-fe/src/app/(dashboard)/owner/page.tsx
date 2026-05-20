@@ -28,6 +28,7 @@ import {
   Building,
   ChevronRight,
   Loader2,
+  ImagePlus,
 } from 'lucide-react';
 
 import {
@@ -42,6 +43,7 @@ import { offerService } from '@/services/offer.service';
 import { ApiRequestError } from '@/lib/api-client';
 import type { OfferDto } from '@/types';
 import { notificationService, type ApiNotification, formatNotificationDate } from '@/services/notification.service';
+import { messageService, type MessageThreadDto, type MessageDto } from '@/services/message.service';
 
 // ─────────────────────────── display types ───────────────────────────
 
@@ -98,6 +100,7 @@ interface ListingForm {
   listingType: ListingType | '';
   propertyType: PropertyType | '';
   agentId: string;
+  photoUrls: string[];
 }
 
 // ─────────────────────────── constants ───────────────────────────
@@ -112,6 +115,7 @@ const initialForm: ListingForm = {
   listingType: '',
   propertyType: '',
   agentId: '',
+  photoUrls: [],
 };
 
 const STATUS_MAP: Record<ApiListingStatus, ListingStatus> = {
@@ -172,7 +176,13 @@ export default function OwnerDashboardPage() {
   >('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
-  const [messageText, setMessageText] = useState('');
+  const [threads, setThreads] = useState<MessageThreadDto[]>([]);
+  const [threadsLoading, setThreadsLoading] = useState(false);
+  const [activeThread, setActiveThread] = useState<MessageThreadDto | null>(null);
+  const [threadMessages, setThreadMessages] = useState<MessageDto[]>([]);
+  const [threadMessagesLoading, setThreadMessagesLoading] = useState(false);
+  const [ownerMsgText, setOwnerMsgText] = useState('');
+  const [msgSendLoading, setMsgSendLoading] = useState(false);
   const [notifications, setNotifications] = useState<ApiNotification[]>([]);
 
   // ── api state
@@ -188,6 +198,7 @@ export default function OwnerDashboardPage() {
   // ── form state
   const [editingListingId, setEditingListingId] = useState<number | null>(null);
   const [form, setForm] = useState<ListingForm>(initialForm);
+  const [photoInput, setPhotoInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -236,6 +247,67 @@ export default function OwnerDashboardPage() {
       .catch(() => setListingOffers([]))
       .finally(() => setOffersLoading(false));
   }, [activeTab, selectedListing]);
+
+  const loadThreads = useCallback(async () => {
+    setThreadsLoading(true);
+    try {
+      const data = await messageService.getThreads();
+      setThreads(data);
+    } catch { /* silently ignore */ }
+    finally { setThreadsLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'messages') loadThreads();
+  }, [activeTab, loadThreads]);
+
+  const handleSelectThread = useCallback(async (thread: MessageThreadDto) => {
+    setActiveThread(thread);
+    setThreadMessagesLoading(true);
+    try {
+      const msgs = await messageService.getThreadMessages(thread.threadId);
+      setThreadMessages(msgs);
+      setThreads((prev) =>
+        prev.map((t) => t.threadId === thread.threadId ? { ...t, unreadCount: 0 } : t),
+      );
+    } catch { /* silently ignore */ }
+    finally { setThreadMessagesLoading(false); }
+  }, []);
+
+  const handleContactAgent = useCallback(async (listing: Listing) => {
+    if (!listing.agentId) return;
+    try {
+      const thread = await messageService.getOrCreateThread(listing.agentId, listing.id);
+      const [data, msgs] = await Promise.all([
+        messageService.getThreads(),
+        messageService.getThreadMessages(thread.threadId),
+      ]);
+      setThreads(data);
+      setActiveThread(thread);
+      setThreadMessages(msgs);
+      setActiveTab('messages');
+    } catch { /* silently ignore */ }
+  }, []);
+
+  const handleSendOwnerMessage = useCallback(async () => {
+    if (!activeThread || !ownerMsgText.trim() || !user) return;
+    const content = ownerMsgText.trim();
+    const recipientId =
+      user.userId === activeThread.participantOneId
+        ? activeThread.participantTwoId
+        : activeThread.participantOneId;
+    setMsgSendLoading(true);
+    try {
+      const msg = await messageService.sendMessage({
+        recipientId,
+        listingId: activeThread.listingId,
+        content,
+      });
+      setThreadMessages((prev) => [...prev, msg]);
+      setOwnerMsgText('');
+    } catch { /* silently ignore */ }
+    finally { setMsgSendLoading(false); }
+  }, [activeThread, ownerMsgText, user]);
 
   const handleMarkAsRead = useCallback(async (notificationId: number) => {
     try {
@@ -295,6 +367,7 @@ export default function OwnerDashboardPage() {
       listingType: raw.listingType,
       propertyType: raw.propertyType,
       agentId: '',
+      photoUrls: raw.photos.map((p) => p.photoUrl),
     });
     setEditingListingId(listing.id);
     setFormError(null);
@@ -325,7 +398,7 @@ export default function OwnerDashboardPage() {
           askingPrice: price,
           listingType: form.listingType as ListingType,
           propertyType: form.propertyType as PropertyType,
-          photoUrls: [],
+          photoUrls: form.photoUrls,
         });
       } else {
         if (!form.agentId) {
@@ -343,7 +416,7 @@ export default function OwnerDashboardPage() {
           listingType: form.listingType as ListingType,
           propertyType: form.propertyType as PropertyType,
           agentId: parseInt(form.agentId),
-          photoUrls: [],
+          photoUrls: form.photoUrls,
         });
       }
       setForm(initialForm);
@@ -399,7 +472,8 @@ export default function OwnerDashboardPage() {
           { tab: 'dashboard', icon: <Home size={20} />,        label: 'Dashboard' },
           { tab: 'create',    icon: <Plus size={20} />,        label: 'Create Listing' },
           { tab: 'manage',    icon: <Building size={20} />,    label: 'Manage Listings', count: displayListings.length },
-          { tab: 'messages',  icon: <MessageSquare size={20} />, label: 'Messages' },
+          { tab: 'messages',  icon: <MessageSquare size={20} />, label: 'Messages',
+            count: threads.reduce((s, t) => s + t.unreadCount, 0) || undefined },
         ].map(({ tab, icon, label, count }) => (
           <button
             key={tab}
@@ -606,13 +680,15 @@ export default function OwnerDashboardPage() {
                                   )}
 
                                   <div className="flex items-center gap-2 flex-wrap">
+                                    {listing.agentId > 0 && (
                                     <button
-                                      onClick={() => { setSelectedListing(listing); setActiveTab('messages'); }}
+                                      onClick={() => handleContactAgent(listing)}
                                       className="text-xs px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium flex items-center gap-1"
                                     >
                                       <MessageSquare size={14} />
                                       Message Agent
                                     </button>
+                                  )}
                                   </div>
                                 </div>
                               </div>
@@ -815,6 +891,75 @@ export default function OwnerDashboardPage() {
                     </div>
                   </div>
 
+                  {/* Photo URLs */}
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-3">
+                      Property Photos <span className="text-gray-400 font-normal">(optional)</span>
+                    </label>
+                    <div className="flex gap-2 mb-3">
+                      <div className="relative flex-1">
+                        <ImagePlus className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <input
+                          type="url"
+                          value={photoInput}
+                          onChange={(e) => setPhotoInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const url = photoInput.trim();
+                              if (url) { setForm((f) => ({ ...f, photoUrls: [...f.photoUrls, url] })); setPhotoInput(''); }
+                            }
+                          }}
+                          placeholder="https://example.com/photo.jpg"
+                          className="w-full pl-11 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = photoInput.trim();
+                          if (!url) return;
+                          setForm((f) => ({ ...f, photoUrls: [...f.photoUrls, url] }));
+                          setPhotoInput('');
+                        }}
+                        className="px-5 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors whitespace-nowrap"
+                      >
+                        Add Photo
+                      </button>
+                    </div>
+                    {form.photoUrls.length > 0 && (
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {form.photoUrls.map((url, i) => (
+                          <div key={i} className="relative group rounded-xl overflow-hidden border border-gray-200 aspect-video bg-gray-100">
+                            <img
+                              src={url}
+                              alt={`Photo ${i + 1}`}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).src = '';
+                                (e.currentTarget.parentElement as HTMLElement).classList.add('flex', 'items-center', 'justify-center');
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setForm((f) => ({ ...f, photoUrls: f.photoUrls.filter((_, j) => j !== i) }))}
+                              className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                            <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <p className="text-white text-xs truncate">{url}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {form.photoUrls.length === 0 && (
+                      <p className="text-xs text-gray-500">Paste a public image URL and click "Add Photo". You can add multiple photos.</p>
+                    )}
+                  </div>
+
                   {/* Agent (create only) */}
                   {!editingListingId && (
                     <div>
@@ -855,10 +1000,18 @@ export default function OwnerDashboardPage() {
                         <li>• Verify address details are correct</li>
                       </ul>
                     </div>
+                    {!editingListingId && agents.length === 0 && (
+                      <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
+                        <AlertCircle size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                        <p className="text-sm text-amber-800">
+                          No verified agents are available to review your listing. Submission is disabled until at least one agent is verified by the admin.
+                        </p>
+                      </div>
+                    )}
                     <div className="flex gap-4">
                       <button
                         type="submit"
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || (!editingListingId && agents.length === 0)}
                         className="flex-1 py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         {isSubmitting
@@ -985,7 +1138,7 @@ export default function OwnerDashboardPage() {
                             ) : listing.apiStatus === 'Active' || listing.apiStatus === 'UnderOffer' ? (
                               <>
                                 <button
-                                  onClick={() => { setSelectedListing(listing); setActiveTab('messages'); }}
+                                  onClick={() => handleContactAgent(listing)}
                                   className="w-full py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                                 >
                                   <MessageSquare size={16} />
@@ -1185,112 +1338,159 @@ export default function OwnerDashboardPage() {
 
           {/* ── Messages Tab ── */}
           {activeTab === 'messages' && (
-            <div className="max-w-4xl mx-auto">
-              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-200px)]">
-                {/* Header */}
-                <div className="p-6 border-b border-gray-200 bg-gray-50">
-                  <div className="mb-4">
-                    <label className="block text-sm font-bold text-gray-900 mb-2">Select Listing</label>
-                    <select
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
-                      onChange={(e) => {
-                        const listing = displayListings.find((l) => l.id === parseInt(e.target.value));
-                        setSelectedListing(listing ?? null);
-                      }}
-                      value={selectedListing?.id ?? ''}
-                    >
-                      <option value="">Choose a listing to message about</option>
-                      {displayListings.map((listing) => (
-                        <option key={listing.id} value={listing.id}>
-                          {listing.title}
-                          {listing.agentName !== 'Unassigned' ? ` — Agent: ${listing.agentName}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+            <div className="flex gap-6 h-[calc(100vh-180px)]">
 
-                  {selectedListing && selectedListing.agentName !== 'Unassigned' && (
-                    <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-gray-200">
-                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
-                        {selectedListing.agentName.charAt(0)}
-                      </div>
-                      <div>
-                        <p className="font-bold text-gray-900">{selectedListing.agentName}</p>
-                        <p className="text-sm text-gray-600">Assigned Agent</p>
-                      </div>
-                    </div>
-                  )}
+              {/* Thread list */}
+              <div className="w-80 flex-shrink-0 bg-white rounded-2xl shadow-lg border border-gray-200 flex flex-col overflow-hidden">
+                <div className="p-4 border-b border-gray-200">
+                  <h2 className="font-bold text-gray-900 flex items-center gap-2">
+                    <MessageSquare size={18} className="text-blue-600" /> Conversations
+                  </h2>
                 </div>
-
-                {/* Messages Area */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
-                  {selectedListing ? (
-                    <>
-                      <div className="flex gap-3">
-                        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                          {selectedListing.agentName.charAt(0)}
-                        </div>
-                        <div className="flex-1">
-                          <div className="bg-white rounded-2xl rounded-tl-none p-4 border border-gray-200 shadow-sm">
-                            <p className="text-sm text-gray-900">
-                              Hello! I've reviewed your listing. Please use the messaging feature here once messaging is fully connected to the backend.
-                            </p>
-                          </div>
-                          <p className="text-xs text-gray-500 mt-1 ml-1">Messages coming soon</p>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-3 justify-end">
-                        <div className="flex-1 max-w-md">
-                          <div className="bg-blue-600 rounded-2xl rounded-tr-none p-4 shadow-sm">
-                            <p className="text-sm text-white">
-                              Thank you! I'll be in touch soon.
-                            </p>
-                          </div>
-                          <p className="text-xs text-gray-500 mt-1 mr-1 text-right">Messages coming soon</p>
-                        </div>
-                        <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-gray-700 text-sm font-bold flex-shrink-0">
-                          {initials}
-                        </div>
-                      </div>
-                    </>
+                <div className="flex-1 overflow-y-auto">
+                  {threadsLoading ? (
+                    <div className="flex justify-center py-10">
+                      <Loader2 className="animate-spin text-blue-600" size={28} />
+                    </div>
+                  ) : threads.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full px-6 text-center py-10">
+                      <MessageSquare className="text-gray-300 mb-3" size={40} />
+                      <p className="text-sm text-gray-500 font-medium">No conversations yet.</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Click "Contact Agent" on a listing to start one.
+                      </p>
+                    </div>
                   ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <div className="text-center">
-                        <MessageSquare className="mx-auto text-gray-400 mb-4" size={48} />
-                        <p className="text-gray-600 font-semibold">Select a listing to start messaging</p>
-                        <p className="text-sm text-gray-500">Choose a listing above to communicate with your agent</p>
-                      </div>
-                    </div>
+                    threads.map((thread) => {
+                      const otherName =
+                        user?.userId === thread.participantOneId
+                          ? thread.participantTwoFullName
+                          : thread.participantOneFullName;
+                      const isActive = activeThread?.threadId === thread.threadId;
+                      return (
+                        <button
+                          key={thread.threadId}
+                          onClick={() => handleSelectThread(thread)}
+                          className={`w-full text-left px-4 py-4 border-b border-gray-100 transition-colors hover:bg-blue-50 ${
+                            isActive ? 'bg-blue-50 border-l-4 border-l-blue-600' : ''
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="font-semibold text-gray-900 text-sm truncate">{otherName}</p>
+                            {thread.unreadCount > 0 && (
+                              <span className="ml-2 flex-shrink-0 w-5 h-5 bg-blue-600 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                                {thread.unreadCount}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-blue-600 font-medium truncate mb-1">
+                            {thread.listingTitle}
+                          </p>
+                          {thread.lastMessage && (
+                            <p className="text-xs text-gray-500 truncate">
+                              {thread.lastMessage.content}
+                            </p>
+                          )}
+                        </button>
+                      );
+                    })
                   )}
                 </div>
+              </div>
 
-                {/* Input */}
-                {selectedListing && (
-                  <div className="p-6 border-t border-gray-200 bg-white">
-                    <form
-                      className="flex gap-3"
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        if (messageText.trim()) {
-                          console.log('Sending message:', messageText);
-                          setMessageText('');
-                        }
-                      }}
-                    >
-                      <input
-                        type="text"
-                        placeholder="Type your message…"
-                        className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        value={messageText}
-                        onChange={(e) => setMessageText(e.target.value)}
-                      />
-                      <button type="submit" className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2">
-                        <Send size={20} />
-                        Send
-                      </button>
-                    </form>
+              {/* Message pane */}
+              <div className="flex-1 bg-white rounded-2xl shadow-lg border border-gray-200 flex flex-col overflow-hidden">
+                {!activeThread ? (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
+                    <MessageSquare className="text-gray-300 mb-4" size={56} />
+                    <p className="text-gray-600 font-semibold">Select a conversation</p>
+                    <p className="text-sm text-gray-400 mt-1">
+                      Choose a thread on the left to read and reply to messages.
+                    </p>
                   </div>
+                ) : (
+                  <>
+                    {/* Thread header */}
+                    <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+                      <p className="font-bold text-gray-900">
+                        {user?.userId === activeThread.participantOneId
+                          ? activeThread.participantTwoFullName
+                          : activeThread.participantOneFullName}
+                      </p>
+                      <p className="text-xs text-blue-600 font-medium mt-0.5">
+                        Re: {activeThread.listingTitle}
+                      </p>
+                    </div>
+
+                    {/* Messages */}
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
+                      {threadMessagesLoading ? (
+                        <div className="flex justify-center py-8">
+                          <Loader2 className="animate-spin text-blue-600" size={28} />
+                        </div>
+                      ) : threadMessages.length === 0 ? (
+                        <p className="text-center text-gray-400 text-sm py-8">
+                          No messages yet. Say hello!
+                        </p>
+                      ) : (
+                        threadMessages.map((msg) => {
+                          const isMine = msg.senderId === user?.userId;
+                          return (
+                            <div
+                              key={msg.messageId}
+                              className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
+                            >
+                              <div
+                                className={`max-w-[70%] px-4 py-3 rounded-2xl text-sm ${
+                                  isMine
+                                    ? 'bg-blue-600 text-white rounded-br-sm'
+                                    : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm shadow-sm'
+                                }`}
+                              >
+                                {!isMine && (
+                                  <p className="text-xs font-semibold mb-1 text-blue-600">
+                                    {msg.senderFullName}
+                                  </p>
+                                )}
+                                <p className="leading-relaxed">{msg.content}</p>
+                                <p className={`text-xs mt-1.5 ${isMine ? 'text-blue-200' : 'text-gray-400'}`}>
+                                  {new Date(msg.sentAt).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    {/* Send bar */}
+                    <div className="p-4 border-t border-gray-200 bg-white flex-shrink-0">
+                      <form
+                        onSubmit={(e) => { e.preventDefault(); handleSendOwnerMessage(); }}
+                        className="flex gap-3"
+                      >
+                        <input
+                          type="text"
+                          placeholder="Type a message…"
+                          value={ownerMsgText}
+                          onChange={(e) => setOwnerMsgText(e.target.value)}
+                          className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        />
+                        <button
+                          type="submit"
+                          disabled={msgSendLoading || !ownerMsgText.trim()}
+                          className="px-5 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {msgSendLoading
+                            ? <Loader2 size={18} className="animate-spin" />
+                            : <Send size={18} />}
+                        </button>
+                      </form>
+                    </div>
+                  </>
                 )}
               </div>
             </div>
