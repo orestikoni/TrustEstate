@@ -29,6 +29,7 @@ type ReportCategory = keyof Omit<InspectionReport, 'inspectionId' | 'finalVerdic
 interface InspectionReportFormProps {
   propertyTitle: string;
   report: InspectionReport;
+  submitting?: boolean;
   onBack: () => void;
   onCategoryChange: (
     category: ReportCategory,
@@ -52,6 +53,7 @@ const CATEGORIES: { key: ReportCategory; label: string }[] = [
 export const InspectionReportForm: React.FC<InspectionReportFormProps> = ({
   propertyTitle,
   report,
+  submitting = false,
   onBack,
   onCategoryChange,
   onPhotoUpload,
@@ -173,10 +175,11 @@ export const InspectionReportForm: React.FC<InspectionReportFormProps> = ({
 
           <button
             onClick={onSubmit}
-            className="w-full py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+            disabled={submitting}
+            className="w-full py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Send size={20} />
-            Submit Inspection Report
+            {submitting ? 'Submitting…' : 'Submit Inspection Report'}
           </button>
         </div>
       </div>

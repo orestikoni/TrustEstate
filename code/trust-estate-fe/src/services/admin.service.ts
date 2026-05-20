@@ -51,6 +51,31 @@ export interface AdminUser {
   createdAt: string;
 }
 
+export interface AdminInspection {
+  inspectionId: number;
+  propertyTitle: string;
+  inspectorName: string;
+  agentName: string;
+  status: string;
+  scheduledDate: string;
+  completedAt: string | null;
+  finalVerdict: string | null;
+  hasReport: boolean;
+  reportLocked: boolean;
+}
+
+export interface AdminDispute {
+  disputeId: number;
+  transactionId: number;
+  submittedByFullName: string;
+  propertyTitle: string;
+  description: string;
+  status: string;
+  resolutionOutcome: string | null;
+  submittedAt: string;
+  resolvedAt: string | null;
+}
+
 export const adminService = {
   getPendingVerifications: () =>
     apiClient.get<PendingVerification[]>('/admin/verifications'),
@@ -72,4 +97,16 @@ export const adminService = {
 
   getUsers: () =>
     apiClient.get<AdminUser[]>('/admin/users'),
+
+  suspendUser: (userId: number, reason?: string) =>
+    apiClient.put<void>(`/admin/users/${userId}/suspend`, { reason: reason ?? null }),
+
+  getInspections: () =>
+    apiClient.get<AdminInspection[]>('/admin/inspections'),
+
+  getDisputes: () =>
+    apiClient.get<AdminDispute[]>('/admin/disputes'),
+
+  resolveDispute: (disputeId: number, resolutionOutcome: string) =>
+    apiClient.put<void>(`/admin/disputes/${disputeId}/resolve`, { resolutionOutcome }),
 };

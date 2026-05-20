@@ -40,6 +40,7 @@ import {
   type PropertyType,
 } from '@/services/listing.service';
 import { offerService } from '@/services/offer.service';
+import { inspectionService, type InspectionReportDto } from '@/services/inspection.service';
 import { ApiRequestError } from '@/lib/api-client';
 import type { OfferDto } from '@/types';
 import { notificationService, type ApiNotification, formatNotificationDate } from '@/services/notification.service';
@@ -195,6 +196,11 @@ export default function OwnerDashboardPage() {
   const [listingOffers, setListingOffers] = useState<OfferDto[]>([]);
   const [offersLoading, setOffersLoading] = useState(false);
 
+  // ── inspection report state
+  const [ownerInspectionReport, setOwnerInspectionReport] = useState<InspectionReportDto | null>(null);
+  const [ownerReportLoading, setOwnerReportLoading] = useState(false);
+  const [ownerReportAvailable, setOwnerReportAvailable] = useState(false);
+
   // ── form state
   const [editingListingId, setEditingListingId] = useState<number | null>(null);
   const [form, setForm] = useState<ListingForm>(initialForm);
@@ -246,6 +252,18 @@ export default function OwnerDashboardPage() {
       .then(setListingOffers)
       .catch(() => setListingOffers([]))
       .finally(() => setOffersLoading(false));
+  }, [activeTab, selectedListing]);
+
+  // Load inspection report when navigating to inspection tab
+  useEffect(() => {
+    if (activeTab !== 'inspection' || !selectedListing) return;
+    setOwnerReportLoading(true);
+    setOwnerInspectionReport(null);
+    setOwnerReportAvailable(false);
+    inspectionService.getOwnerInspectionReport(selectedListing.id)
+      .then((report) => { setOwnerInspectionReport(report); setOwnerReportAvailable(true); })
+      .catch(() => { setOwnerReportAvailable(false); })
+      .finally(() => setOwnerReportLoading(false));
   }, [activeTab, selectedListing]);
 
   const loadThreads = useCallback(async () => {
@@ -1275,63 +1293,76 @@ export default function OwnerDashboardPage() {
                 <div className="mb-6 pb-6 border-b border-gray-200">
                   <h2 className="text-2xl font-bold text-gray-900 mb-2">Property Inspection Report</h2>
                   <p className="text-gray-600">{selectedListing.title}</p>
-                  <p className="text-sm text-gray-500 mt-1">Inspected on: February 28, 2024</p>
                 </div>
 
-                <div className="mb-8 p-6 bg-green-50 border-2 border-green-300 rounded-xl">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
-                      <CheckCircle className="text-white" size={24} />
-                    </div>
-                    <div>
-                      <p className="text-lg font-bold text-green-900">PASS — Property Approved</p>
-                      <p className="text-sm text-green-800">Overall condition: Excellent</p>
-                    </div>
+                {ownerReportLoading && (
+                  <div className="flex items-center justify-center py-16">
+                    <Loader2 className="animate-spin text-blue-600" size={40} />
                   </div>
-                  <p className="text-sm text-green-800">This property has passed inspection with minor observations. No critical issues were found.</p>
-                </div>
+                )}
 
-                <div className="space-y-6">
-                  {[
-                    { category: 'Structural Integrity', rating: 'Pass', severity: 'Low',    findings: 'Foundation and framing in excellent condition. Minor cosmetic cracks in garage floor.' },
-                    { category: 'Plumbing',             rating: 'Pass', severity: 'Low',    findings: 'All plumbing systems functioning properly. Water pressure adequate throughout.' },
-                    { category: 'Electrical',           rating: 'Pass', severity: 'Medium', findings: 'Electrical panel updated in 2020. Recommend adding GFCI outlets in bathrooms.' },
-                    { category: 'HVAC',                 rating: 'Pass', severity: 'Low',    findings: 'Heating and cooling systems operational. Last serviced 3 months ago.' },
-                    { category: 'Roof',                 rating: 'Pass', severity: 'Low',    findings: 'Roof in good condition with 10+ years remaining lifespan.' },
-                    { category: 'Safety',               rating: 'Pass', severity: 'Low',    findings: 'Smoke detectors and CO detectors present and functional.' },
-                  ].map((item, i) => (
-                    <div key={i} className="p-5 bg-gray-50 rounded-xl border border-gray-200">
-                      <div className="flex items-start justify-between mb-3">
-                        <h3 className="text-lg font-bold text-gray-900">{item.category}</h3>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-3 py-1 text-xs font-bold rounded-full ${item.rating === 'Pass' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                            {item.rating}
-                          </span>
-                          <span className={`px-3 py-1 text-xs font-bold rounded-full ${
-                            item.severity === 'Low' ? 'bg-blue-100 text-blue-700' :
-                            item.severity === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
-                          }`}>
-                            {item.severity}
-                          </span>
+                {!ownerReportLoading && !ownerReportAvailable && (
+                  <div className="p-6 bg-blue-50 border border-blue-200 rounded-xl text-center">
+                    <ClipboardCheck className="mx-auto text-blue-400 mb-3" size={40} />
+                    <p className="text-blue-900 font-semibold mb-1">Inspection Report Not Yet Available</p>
+                    <p className="text-sm text-blue-800">The inspection report will appear here once the inspector submits and locks it.</p>
+                  </div>
+                )}
+
+                {!ownerReportLoading && ownerReportAvailable && ownerInspectionReport && (() => {
+                  const r = ownerInspectionReport;
+                  const verdictColor = r.finalVerdict === 'Passed'
+                    ? 'bg-green-50 border-green-300'
+                    : r.finalVerdict === 'Failed'
+                    ? 'bg-red-50 border-red-300'
+                    : 'bg-yellow-50 border-yellow-300';
+                  const verdictTextColor = r.finalVerdict === 'Passed' ? 'text-green-900' : r.finalVerdict === 'Failed' ? 'text-red-900' : 'text-yellow-900';
+                  return (
+                    <>
+                      {r.finalVerdict && (
+                        <div className={`mb-8 p-6 border-2 rounded-xl ${verdictColor}`}>
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${r.finalVerdict === 'Passed' ? 'bg-green-500' : r.finalVerdict === 'Failed' ? 'bg-red-500' : 'bg-yellow-500'}`}>
+                              <CheckCircle className="text-white" size={24} />
+                            </div>
+                            <p className={`text-lg font-bold ${verdictTextColor}`}>
+                              {r.finalVerdict === 'PassedWithConditions' ? 'Passed With Conditions' : r.finalVerdict}
+                            </p>
+                          </div>
+                          {r.verdictSubmittedAt && (
+                            <p className={`text-sm ${verdictTextColor}`}>Submitted: {new Date(r.verdictSubmittedAt).toLocaleDateString()}</p>
+                          )}
                         </div>
-                      </div>
-                      <p className="text-sm text-gray-700">{item.findings}</p>
-                    </div>
-                  ))}
-                </div>
+                      )}
 
-                <div className="mt-8 pt-6 border-t border-gray-200">
-                  <p className="text-sm text-gray-600">
-                    <strong>Inspector:</strong> Certified Inspector Name<br />
-                    <strong>License:</strong> #INS-12345-CA<br />
-                    <strong>Report Date:</strong> February 28, 2024
-                  </p>
-                </div>
-                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm text-blue-900">
-                    <strong>Note:</strong> This report is read-only. For questions about the inspection, please contact your agent through the messaging panel.
-                  </p>
-                </div>
+                      <div className="space-y-4">
+                        {r.categories.map((cat) => (
+                          <div key={cat.categoryId} className="p-5 bg-gray-50 rounded-xl border border-gray-200">
+                            <div className="flex items-start justify-between mb-3">
+                              <h3 className="text-lg font-bold text-gray-900">{cat.categoryName}</h3>
+                              <div className="flex items-center gap-2">
+                                <span className={`px-3 py-1 text-xs font-bold rounded-full ${cat.passFail === 'Pass' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                  {cat.passFail}
+                                </span>
+                                <span className={`px-3 py-1 text-xs font-bold rounded-full ${
+                                  cat.severity === 'Minor' ? 'bg-blue-100 text-blue-700' :
+                                  cat.severity === 'Moderate' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                                }`}>{cat.severity}</span>
+                              </div>
+                            </div>
+                            <p className="text-sm text-gray-700">{cat.findings}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-sm text-blue-900">
+                          <strong>Note:</strong> This report is read-only. For questions about the inspection, contact your agent through the messaging panel.
+                        </p>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}

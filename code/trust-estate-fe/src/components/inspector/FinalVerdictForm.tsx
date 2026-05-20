@@ -7,11 +7,13 @@ type FinalVerdict = 'passed' | 'passed_with_conditions' | 'failed';
 
 interface FinalVerdictFormProps {
   propertyTitle: string;
+  submitting?: boolean;
   onSubmit: (verdict: FinalVerdict) => void;
 }
 
 export const FinalVerdictForm: React.FC<FinalVerdictFormProps> = ({
   propertyTitle,
+  submitting = false,
   onSubmit,
 }) => {
   return (
@@ -31,7 +33,8 @@ export const FinalVerdictForm: React.FC<FinalVerdictFormProps> = ({
           {/* Passed */}
           <button
             onClick={() => onSubmit('passed')}
-            className="w-full p-6 bg-green-50 border-2 border-green-200 rounded-xl hover:bg-green-100 hover:border-green-300 hover:shadow-md transition-all text-left"
+            disabled={submitting}
+            className="w-full p-6 bg-green-50 border-2 border-green-200 rounded-xl hover:bg-green-100 hover:border-green-300 hover:shadow-md transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <div className="flex items-center gap-4">
               <CheckCircle className="text-green-600 flex-shrink-0" size={32} />
@@ -45,7 +48,8 @@ export const FinalVerdictForm: React.FC<FinalVerdictFormProps> = ({
           {/* Passed with Conditions */}
           <button
             onClick={() => onSubmit('passed_with_conditions')}
-            className="w-full p-6 bg-yellow-50 border-2 border-yellow-200 rounded-xl hover:bg-yellow-100 hover:border-yellow-300 hover:shadow-md transition-all text-left"
+            disabled={submitting}
+            className="w-full p-6 bg-yellow-50 border-2 border-yellow-200 rounded-xl hover:bg-yellow-100 hover:border-yellow-300 hover:shadow-md transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <div className="flex items-center gap-4">
               <AlertTriangle className="text-yellow-600 flex-shrink-0" size={32} />
@@ -59,7 +63,8 @@ export const FinalVerdictForm: React.FC<FinalVerdictFormProps> = ({
           {/* Failed */}
           <button
             onClick={() => onSubmit('failed')}
-            className="w-full p-6 bg-red-50 border-2 border-red-200 rounded-xl hover:bg-red-100 hover:border-red-300 hover:shadow-md transition-all text-left"
+            disabled={submitting}
+            className="w-full p-6 bg-red-50 border-2 border-red-200 rounded-xl hover:bg-red-100 hover:border-red-300 hover:shadow-md transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <div className="flex items-center gap-4">
               <XCircle className="text-red-600 flex-shrink-0" size={32} />

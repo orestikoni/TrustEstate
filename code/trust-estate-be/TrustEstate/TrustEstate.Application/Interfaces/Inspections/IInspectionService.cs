@@ -12,5 +12,6 @@ public interface IInspectionService
     Task<InspectionReportDto> SubmitInspectionReportAsync(int inspectorId, int inspectionId, SubmitInspectionReportRequest request, CancellationToken ct = default);
     Task<InspectionReportDto> SubmitFinalVerdictAsync(int inspectorId, int inspectionId, SubmitVerdictRequest request, CancellationToken ct = default);
     Task<InspectionReportDto> GetInspectionReportAsync(int userId, int listingId, CancellationToken ct = default);
+    Task<InspectionReportDto> GetInspectionReportForOwnerAsync(int ownerId, int listingId, CancellationToken ct = default);
     Task<InspectionDto> GetInspectionByListingAsync(int agentId, int listingId, CancellationToken ct = default);
 }

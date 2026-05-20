@@ -730,6 +730,7 @@ export default function InspectorDashboardPage() {
             <InspectionReportForm
               propertyTitle={selectedInspection.propertyTitle}
               report={report}
+              submitting={reportSubmitting}
               onBack={() => setShowReportForm(false)}
               onCategoryChange={handleCategoryChange}
               onPhotoUpload={handlePhotoUpload}
@@ -741,6 +742,7 @@ export default function InspectorDashboardPage() {
           {showVerdictForm && selectedInspection && (
             <FinalVerdictForm
               propertyTitle={selectedInspection.propertyTitle}
+              submitting={verdictSubmitting}
               onSubmit={handleSubmitVerdict}
             />
           )}

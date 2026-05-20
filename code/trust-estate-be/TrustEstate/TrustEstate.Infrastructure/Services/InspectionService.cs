@@ -347,6 +347,25 @@ public sealed class InspectionService : IInspectionService
         return MapReportToDto(inspection.Report);
     }
 
+    // ── Owner: View inspection report ────────────────────────────────────────
+
+    public async Task<InspectionReportDto> GetInspectionReportForOwnerAsync(int ownerId, int listingId, CancellationToken ct = default)
+    {
+        var listing = await _db.Listings.FindAsync(new object[] { listingId }, ct)
+            ?? throw new NotFoundException(nameof(Listing), listingId);
+
+        if (listing.OwnerId != ownerId)
+            throw new ForbiddenException("You do not own this listing.");
+
+        var inspection = await _repo.GetByListingIdAsync(listingId, ct)
+            ?? throw new NotFoundException("Inspection for listing", listingId);
+
+        if (inspection.Report == null || !inspection.Report.IsLocked)
+            throw new NotFoundException("Inspection report", listingId);
+
+        return MapReportToDto(inspection.Report);
+    }
+
     // ── Agent: Get inspection by listing ─────────────────────────────────────
 
     public async Task<InspectionDto> GetInspectionByListingAsync(int agentId, int listingId, CancellationToken ct = default)

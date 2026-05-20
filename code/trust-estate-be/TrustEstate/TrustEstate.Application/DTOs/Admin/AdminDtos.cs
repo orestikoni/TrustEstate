@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace TrustEstate.Application.DTOs.Admin;
 
 public sealed record PendingVerificationDto
@@ -53,4 +55,43 @@ public sealed record AdminUserDto
     public string Role { get; init; } = string.Empty;
     public string AccountStatus { get; init; } = string.Empty;
     public DateTime CreatedAt { get; init; }
+}
+
+public sealed record SuspendUserRequest
+{
+    public string? Reason { get; init; }
+}
+
+public sealed record AdminInspectionDto
+{
+    public int InspectionId { get; init; }
+    public string PropertyTitle { get; init; } = string.Empty;
+    public string InspectorName { get; init; } = string.Empty;
+    public string AgentName { get; init; } = string.Empty;
+    public string Status { get; init; } = string.Empty;
+    public DateTime ScheduledDate { get; init; }
+    public DateTime? CompletedAt { get; init; }
+    public string? FinalVerdict { get; init; }
+    public bool HasReport { get; init; }
+    public bool ReportLocked { get; init; }
+}
+
+public sealed record AdminDisputeDto
+{
+    public int DisputeId { get; init; }
+    public int TransactionId { get; init; }
+    public string SubmittedByFullName { get; init; } = string.Empty;
+    public string PropertyTitle { get; init; } = string.Empty;
+    public string Description { get; init; } = string.Empty;
+    public string Status { get; init; } = string.Empty;
+    public string? ResolutionOutcome { get; init; }
+    public DateTime SubmittedAt { get; init; }
+    public DateTime? ResolvedAt { get; init; }
+}
+
+public sealed record ResolveDisputeRequest
+{
+    [Required]
+    [MaxLength(5000)]
+    public string ResolutionOutcome { get; init; } = string.Empty;
 }

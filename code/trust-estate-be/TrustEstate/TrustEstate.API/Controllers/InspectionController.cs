@@ -118,6 +118,20 @@ public sealed class InspectionController : ControllerBase
         return Ok(report);
     }
 
+    // ── Owner ─────────────────────────────────────────────────────────────────
+
+    [HttpGet("listing/{listingId:int}/report/owner")]
+    [Authorize(Roles = "Owner")]
+    [ProducesResponseType(typeof(InspectionReportDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetInspectionReportForOwner(int listingId, CancellationToken ct)
+    {
+        var ownerId = GetCurrentUserId();
+        var report = await _inspections.GetInspectionReportForOwnerAsync(ownerId, listingId, ct);
+        return Ok(report);
+    }
+
     // ── Buyer ─────────────────────────────────────────────────────────────────
 
     [HttpGet("listing/{listingId:int}/report")]

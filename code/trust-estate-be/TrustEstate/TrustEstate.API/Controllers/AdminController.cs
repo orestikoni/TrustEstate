@@ -77,4 +77,38 @@ public sealed class AdminController : ControllerBase
         var result = await _admin.GetAllUsersAsync(ct);
         return Ok(result);
     }
+
+    [HttpPut("users/{userId:int}/suspend")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SuspendUser(int userId, [FromBody] SuspendUserRequest request, CancellationToken ct)
+    {
+        await _admin.SuspendUserAsync(userId, request.Reason, ct);
+        return NoContent();
+    }
+
+    [HttpGet("inspections")]
+    [ProducesResponseType(typeof(IEnumerable<AdminInspectionDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAllInspections(CancellationToken ct)
+    {
+        var result = await _admin.GetAllInspectionsAsync(ct);
+        return Ok(result);
+    }
+
+    [HttpGet("disputes")]
+    [ProducesResponseType(typeof(IEnumerable<AdminDisputeDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAllDisputes(CancellationToken ct)
+    {
+        var result = await _admin.GetAllDisputesAsync(ct);
+        return Ok(result);
+    }
+
+    [HttpPut("disputes/{disputeId:int}/resolve")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ResolveDispute(int disputeId, [FromBody] ResolveDisputeRequest request, CancellationToken ct)
+    {
+        await _admin.ResolveDisputeAsync(disputeId, request.ResolutionOutcome, ct);
+        return NoContent();
+    }
 }

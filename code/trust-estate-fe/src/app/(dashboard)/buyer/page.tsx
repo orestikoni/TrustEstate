@@ -7,6 +7,7 @@ import { authService } from '@/services/auth.service';
 import { tokenStorage, ApiRequestError } from '@/lib/api-client';
 import { offerService } from '@/services/offer.service';
 import { listingService, type ApiListing } from '@/services/listing.service';
+import { inspectionService, type InspectionReportDto } from '@/services/inspection.service';
 import { messageService, type MessageThreadDto, type MessageDto } from '@/services/message.service';
 import type { User, OfferDto, PostInspectionOptionsDto } from '@/types';
 import { PostInspectionPanel } from '@/components/shared/PostInspectionPanel';
@@ -146,6 +147,10 @@ export default function BuyerDashboardPage() {
   const [offersError, setOffersError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [postInspectionLoading, setPostInspectionLoading] = useState(false);
+
+  // Inspection report state (keyed by listingId)
+  const [inspectionReports, setInspectionReports] = useState<Record<number, InspectionReportDto | null>>({});
+  const [reportLoading, setReportLoading] = useState<Record<number, boolean>>({});
 
   // Favorites state
   const [favorites, setFavorites] = useState<ApiListing[]>([]);
@@ -435,6 +440,21 @@ export default function BuyerDashboardPage() {
     }).catch(() => { /* silently ignore — window simply not open */ });
     return () => { cancelled = true; };
   }, [selectedOffer?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Fetch inspection report for accepted offers ────────────────────────────
+
+  useEffect(() => {
+    if (!selectedOffer || selectedOffer.status !== 'accepted') return;
+    const { listingId } = selectedOffer;
+    if (inspectionReports[listingId] !== undefined) return; // already loaded or null
+    let cancelled = false;
+    setReportLoading((prev) => ({ ...prev, [listingId]: true }));
+    inspectionService.getInspectionReport(listingId)
+      .then((report) => { if (!cancelled) setInspectionReports((prev) => ({ ...prev, [listingId]: report })); })
+      .catch(() => { if (!cancelled) setInspectionReports((prev) => ({ ...prev, [listingId]: null })); })
+      .finally(() => { if (!cancelled) setReportLoading((prev) => ({ ...prev, [listingId]: false })); });
+    return () => { cancelled = true; };
+  }, [selectedOffer?.id, selectedOffer?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -1175,6 +1195,67 @@ export default function BuyerDashboardPage() {
                     </button>
                   </div>
                 )}
+
+                {/* Inspection Report — shown for accepted offers once report is locked */}
+                {selectedOffer.status === 'accepted' && (() => {
+                  const report = inspectionReports[selectedOffer.listingId];
+                  const loading = reportLoading[selectedOffer.listingId];
+                  if (loading) return (
+                    <div className="mb-6 p-5 bg-gray-50 border border-gray-200 rounded-xl flex items-center gap-3">
+                      <Loader2 className="animate-spin text-blue-600 flex-shrink-0" size={20} />
+                      <p className="text-sm text-gray-600">Loading inspection report…</p>
+                    </div>
+                  );
+                  if (!report) return (
+                    <div className="mb-6 p-5 bg-blue-50 border border-blue-200 rounded-xl">
+                      <div className="flex items-center gap-3 mb-1">
+                        <ClipboardCheck size={18} className="text-blue-600" />
+                        <p className="text-sm font-bold text-blue-900">Inspection Report</p>
+                      </div>
+                      <p className="text-sm text-blue-800">The inspection report is not yet available. It will appear here once the inspector submits and locks the report.</p>
+                    </div>
+                  );
+                  const verdictColor = report.finalVerdict === 'Passed' ? 'bg-green-50 border-green-300 text-green-900' :
+                    report.finalVerdict === 'Failed' ? 'bg-red-50 border-red-300 text-red-900' :
+                    'bg-yellow-50 border-yellow-300 text-yellow-900';
+                  return (
+                    <div className="mb-6">
+                      <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                        <ClipboardCheck size={20} className="text-blue-600" /> Inspection Report
+                      </h3>
+                      {report.finalVerdict && (
+                        <div className={`p-4 rounded-xl border-2 mb-4 ${verdictColor}`}>
+                          <p className="font-bold text-lg">
+                            Verdict: {report.finalVerdict === 'PassedWithConditions' ? 'Passed With Conditions' : report.finalVerdict}
+                          </p>
+                          {report.verdictSubmittedAt && (
+                            <p className="text-sm mt-1">Submitted: {new Date(report.verdictSubmittedAt).toLocaleDateString()}</p>
+                          )}
+                        </div>
+                      )}
+                      <div className="space-y-3">
+                        {report.categories.map((cat) => (
+                          <div key={cat.categoryId} className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="font-bold text-gray-900">{cat.categoryName}</h4>
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${cat.passFail === 'Pass' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                  {cat.passFail}
+                                </span>
+                                <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${
+                                  cat.severity === 'Minor' ? 'bg-blue-100 text-blue-700' :
+                                  cat.severity === 'Moderate' ? 'bg-yellow-100 text-yellow-700' :
+                                  'bg-red-100 text-red-700'
+                                }`}>{cat.severity}</span>
+                              </div>
+                            </div>
+                            <p className="text-sm text-gray-700">{cat.findings}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Post-inspection panel — only shown when window is open */}
                 {selectedOffer.postInspectionOptions?.windowOpen && (

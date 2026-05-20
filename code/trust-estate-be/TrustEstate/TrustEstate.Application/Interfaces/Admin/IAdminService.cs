@@ -13,4 +13,10 @@ public interface IAdminService
     Task RemoveListingAsync(int listingId, string? reason, CancellationToken ct = default);
 
     Task<IEnumerable<AdminUserDto>> GetAllUsersAsync(CancellationToken ct = default);
+    Task SuspendUserAsync(int userId, string? reason, CancellationToken ct = default);
+
+    Task<IEnumerable<AdminInspectionDto>> GetAllInspectionsAsync(CancellationToken ct = default);
+
+    Task<IEnumerable<AdminDisputeDto>> GetAllDisputesAsync(CancellationToken ct = default);
+    Task ResolveDisputeAsync(int disputeId, string resolutionOutcome, CancellationToken ct = default);
 }

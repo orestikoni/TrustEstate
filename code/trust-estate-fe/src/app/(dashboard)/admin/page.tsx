@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { adminService, type PendingVerification, type AdminListing, type AdminUser } from '@/services/admin.service';
+import { adminService, type PendingVerification, type AdminListing, type AdminUser, type AdminInspection, type AdminDispute } from '@/services/admin.service';
 import { notificationService, type ApiNotification, formatNotificationDate } from '@/services/notification.service';
 import { ApiRequestError } from '@/lib/api-client';
 import { useAuth } from '@/store/auth.context';
@@ -30,7 +30,6 @@ import {
   DollarSign,
   UserCheck,
   Edit,
-  Trash2,
   AlertCircle,
   Activity,
   Calendar,
@@ -62,41 +61,6 @@ import { ListingCard } from '@/components/admin/ListingCard';
 
 
 
-interface InspectionReportReview {
-  id: number;
-  propertyTitle: string;
-  inspectorName: string;
-  submittedDate: string;
-  verdict: 'passed' | 'passed_with_conditions' | 'failed';
-  flaggedBy: string | null;
-  status: 'active' | 'flagged' | 'removed';
-}
-
-interface Dispute {
-  id: number;
-  disputeType: 'transaction' | 'listing' | 'inspection' | 'user_conduct';
-  initiatedBy: string;
-  respondent: string;
-  propertyTitle: string;
-  submittedDate: string;
-  status: 'open' | 'investigating' | 'resolved' | 'closed';
-  priority: 'low' | 'medium' | 'high';
-  description: string;
-}
-
-
-
-const inspectionReports: InspectionReportReview[] = [
-  { id: 1, propertyTitle: 'Luxury Estate Mansion', inspectorName: 'Mark Johnson', submittedDate: '2026-05-08', verdict: 'passed',                 flaggedBy: null,                       status: 'active' },
-  { id: 2, propertyTitle: 'Modern City Apartment', inspectorName: 'Lisa Parker',  submittedDate: '2026-05-09', verdict: 'passed_with_conditions', flaggedBy: 'Owner: Jennifer Martinez', status: 'flagged' },
-  { id: 3, propertyTitle: 'Coastal Beach House',   inspectorName: 'Tom Richards', submittedDate: '2026-05-07', verdict: 'failed',                 flaggedBy: null,                       status: 'active' },
-];
-
-const disputes: Dispute[] = [
-  { id: 1, disputeType: 'transaction', initiatedBy: 'John Doe (Buyer)',       respondent: 'Sarah Anderson (Agent)',    propertyTitle: 'Luxury Estate Mansion', submittedDate: '2026-05-09', status: 'open',          priority: 'high',   description: 'Buyer claims agent misrepresented property condition during showing.' },
-  { id: 2, disputeType: 'inspection',  initiatedBy: 'Michael Wilson (Owner)', respondent: 'Mark Johnson (Inspector)', propertyTitle: 'Modern City Apartment', submittedDate: '2026-05-08', status: 'investigating', priority: 'medium', description: 'Owner disputes inspection report findings on electrical system.' },
-  { id: 3, disputeType: 'listing',     initiatedBy: 'Emily Chen (Buyer)',     respondent: 'David Thompson (Owner)',   propertyTitle: 'Coastal Beach House',   submittedDate: '2026-05-07', status: 'resolved',      priority: 'low',    description: 'Buyer reported inaccurate square footage in listing. Resolved: listing updated.' },
-];
 
 
 const userGrowthData = [
@@ -125,20 +89,23 @@ const revenueData = [
 ];
 
 export default function AdminDashboardPage() {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
+  const adminInitials = user ? `${user.firstName[0] ?? ''}${user.lastName[0] ?? ''}`.toUpperCase() : 'AD';
+  const adminName = user ? `${user.firstName} ${user.lastName}`.trim() : 'Admin';
+
   const [activeTab, setActiveTab] = useState<
     'dashboard' | 'verifications' | 'listings' | 'users' | 'reports' | 'disputes' | 'notifications'
   >('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [selectedListing, setSelectedListing] = useState<AdminListing | null>(null);
-  const [selectedReport, setSelectedReport] = useState<InspectionReportReview | null>(null);
-  const [selectedDispute, setSelectedDispute] = useState<Dispute | null>(null);
+  const [selectedReport, setSelectedReport] = useState<AdminInspection | null>(null);
+  const [selectedDispute, setSelectedDispute] = useState<AdminDispute | null>(null);
   const [actionReason, setActionReason] = useState('');
   const [listingFilter, setListingFilter] = useState<'all' | 'active' | 'pending' | 'suspended'>('all');
   const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'buyer' | 'owner' | 'agent' | 'inspector'>('all');
-  const [reportFilter, setReportFilter] = useState<'all' | 'active' | 'flagged'>('all');
-  const [disputeFilter, setDisputeFilter] = useState<'all' | 'open' | 'investigating' | 'resolved'>('all');
+  const [reportFilter, setReportFilter] = useState<'all' | 'ongoing' | 'submitted'>('all');
+  const [disputeFilter, setDisputeFilter] = useState<'all' | 'Open' | 'UnderReview' | 'Resolved'>('all');
 
   // ── Verifications API state
   const [pendingVerifications, setPendingVerifications] = useState<PendingVerification[]>([]);
@@ -264,6 +231,90 @@ export default function AdminDashboardPage() {
     loadUsers();
   }, [loadUsers]);
 
+  // ── Inspections API state ─────────────────────────────────────────────────
+  const [inspections, setInspections] = useState<AdminInspection[]>([]);
+  const [inspectionsLoading, setInspectionsLoading] = useState(false);
+  const [inspectionsError, setInspectionsError] = useState<string | null>(null);
+
+  const loadInspections = useCallback(async () => {
+    setInspectionsLoading(true);
+    setInspectionsError(null);
+    try {
+      const data = await adminService.getInspections();
+      setInspections(data);
+    } catch (err) {
+      setInspectionsError(err instanceof ApiRequestError ? err.apiError.message : 'Failed to load inspections.');
+    } finally {
+      setInspectionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'reports') loadInspections();
+  }, [activeTab, loadInspections]);
+
+  // ── Disputes API state ────────────────────────────────────────────────────
+  const [disputes, setDisputes] = useState<AdminDispute[]>([]);
+  const [disputesLoading, setDisputesLoading] = useState(false);
+  const [disputesError, setDisputesError] = useState<string | null>(null);
+  const [disputeResolving, setDisputeResolving] = useState(false);
+
+  const loadDisputes = useCallback(async () => {
+    setDisputesLoading(true);
+    setDisputesError(null);
+    try {
+      const data = await adminService.getDisputes();
+      setDisputes(data);
+    } catch (err) {
+      setDisputesError(err instanceof ApiRequestError ? err.apiError.message : 'Failed to load disputes.');
+    } finally {
+      setDisputesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'disputes') loadDisputes();
+  }, [activeTab, loadDisputes]);
+
+  const handleResolveDispute = async (dispute: AdminDispute) => {
+    if (!actionReason.trim()) return;
+    setDisputeResolving(true);
+    try {
+      await adminService.resolveDispute(dispute.disputeId, actionReason);
+      setDisputes((prev) =>
+        prev.map((d) => d.disputeId === dispute.disputeId
+          ? { ...d, status: 'Resolved', resolutionOutcome: actionReason, resolvedAt: new Date().toISOString() }
+          : d),
+      );
+      setSelectedDispute(null);
+      setActionReason('');
+    } catch (err) {
+      alert(err instanceof ApiRequestError ? err.apiError.message : 'Failed to resolve dispute.');
+    } finally {
+      setDisputeResolving(false);
+    }
+  };
+
+  // ── User suspend ──────────────────────────────────────────────────────────
+  const [userSuspending, setUserSuspending] = useState(false);
+
+  const handleSuspendUser = async (targetUser: AdminUser) => {
+    if (!actionReason.trim()) return;
+    setUserSuspending(true);
+    try {
+      await adminService.suspendUser(targetUser.userId, actionReason);
+      setUsers((prev) =>
+        prev.map((u) => u.userId === targetUser.userId ? { ...u, accountStatus: 'Suspended' } : u),
+      );
+      setSelectedUser(null);
+      setActionReason('');
+    } catch (err) {
+      alert(err instanceof ApiRequestError ? err.apiError.message : 'Failed to suspend user.');
+    } finally {
+      setUserSuspending(false);
+    }
+  };
+
   const handleSuspendListing = useCallback(async (listing: AdminListing) => {
     if (!actionReason.trim()) return;
     setListingActionLoading(true);
@@ -326,15 +377,6 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high':   return 'bg-red-100 text-red-700 border-red-200';
-      case 'medium': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case 'low':    return 'bg-blue-100 text-blue-700 border-blue-200';
-      default:       return 'bg-gray-100 text-gray-700 border-gray-200';
-    }
-  };
-
   const clearAction = () => {
     setSelectedListing(null);
     setSelectedUser(null);
@@ -357,11 +399,17 @@ export default function AdminDashboardPage() {
     { name: 'Inspectors', value: users.filter(u => u.role === 'PropertyInspector').length,  color: '#f59e0b' },
   ].filter(item => item.value > 0);
 
-  const getFilteredReports = () =>
-    reportFilter === 'all' ? inspectionReports : inspectionReports.filter(r => r.status === reportFilter);
+  const getFilteredReports = () => {
+    if (reportFilter === 'all') return inspections;
+    if (reportFilter === 'ongoing') return inspections.filter(i => !i.reportLocked);
+    if (reportFilter === 'submitted') return inspections.filter(i => i.reportLocked);
+    return inspections;
+  };
 
-  const getFilteredDisputes = () =>
-    disputeFilter === 'all' ? disputes : disputes.filter(d => d.status === disputeFilter);
+  const getFilteredDisputes = () => {
+    if (disputeFilter === 'all') return disputes;
+    return disputes.filter(d => d.status === disputeFilter);
+  };
 
   const Sidebar = () => (
     <div className="h-full bg-gradient-to-br from-gray-700 via-gray-600 to-gray-700 flex flex-col shadow-2xl">
@@ -378,9 +426,9 @@ export default function AdminDashboardPage() {
       {/* Admin Profile */}
       <div className="p-6 border-b border-gray-500/30">
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center text-white text-lg font-bold shadow-lg">AD</div>
+          <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center text-white text-lg font-bold shadow-lg">{adminInitials}</div>
           <div>
-            <p className="font-bold text-white">Admin User</p>
+            <p className="font-bold text-white">{adminName}</p>
             <p className="text-sm text-gray-300">Platform Administrator</p>
           </div>
         </div>
@@ -401,9 +449,9 @@ export default function AdminDashboardPage() {
           { tab: 'users',         icon: <Users          size={20} />, label: 'Users',
             count: users.length },
           { tab: 'reports',       icon: <ClipboardCheck size={20} />, label: 'Reports',
-            count: inspectionReports.filter(r => r.status === 'flagged').length, countColor: 'bg-orange-600' },
+            count: inspections.filter(i => !i.reportLocked).length || undefined, countColor: 'bg-orange-600' },
           { tab: 'disputes',      icon: <MessageSquare  size={20} />, label: 'Disputes',
-            count: disputes.filter(d => d.status === 'open').length, countColor: 'bg-red-600' },
+            count: disputes.filter(d => d.status === 'Open' || d.status === 'UnderReview').length || undefined, countColor: 'bg-red-600' },
           { tab: 'notifications', icon: <Bell           size={20} />, label: 'Notifications',
             count: notifications.filter(n => !n.isRead).length, countColor: 'bg-red-600' },
         ].map(({ tab, icon, label, count, countColor }) => (
@@ -499,7 +547,7 @@ export default function AdminDashboardPage() {
                   { label: 'Active Listings',      value: listings.filter(l => l.status === 'Active').length,     sub: 'Currently live',          subColor: 'text-green-600',  icon: <Building      className="text-blue-500"    size={24} /> },
                   { label: 'Suspended Listings',   value: listings.filter(l => l.status === 'Suspended').length, sub: 'Requires attention',      subColor: 'text-orange-600', icon: <Flag          className="text-orange-500"  size={24} /> },
                   { label: 'Pending Verifications',  value: pendingVerifications.length,                                                            sub: '72h review window',       subColor: 'text-purple-600', icon: <Clock         className="text-purple-500"  size={24} /> },
-                  { label: 'Open Disputes',          value: disputes.filter(d => d.status === 'open' || d.status === 'investigating').length,       sub: 'Immediate action needed', subColor: 'text-red-600',    icon: <MessageSquare className="text-red-500"     size={24} /> },
+                  { label: 'Open Disputes',          value: disputes.filter(d => d.status === 'Open' || d.status === 'UnderReview').length,         sub: 'Immediate action needed', subColor: 'text-red-600',    icon: <MessageSquare className="text-red-500"     size={24} /> },
                 ].map((stat) => (
                   <div key={stat.label} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
                     <div className="flex items-center justify-between mb-2">
@@ -586,7 +634,7 @@ export default function AdminDashboardPage() {
                 {[
                   { gradient: 'from-blue-500 to-blue-600',     icon: <Activity      className="text-white/80 mb-4" size={32} />, label: 'Total Listings',      value: listings.length,                                                         sub: `${listings.filter(l => l.status === 'Active').length} active` },
                   { gradient: 'from-green-500 to-green-600',   icon: <UserCheck     className="text-white/80 mb-4" size={32} />, label: 'Verified Users',      value: users.filter(u => u.accountStatus === 'Active').length,                 sub: `Out of ${users.length} total` },
-                  { gradient: 'from-orange-500 to-orange-600', icon: <ClipboardCheck className="text-white/80 mb-4" size={32} />, label: 'Inspection Reports', value: inspectionReports.length,                                                sub: `${inspectionReports.filter(r => r.status === 'flagged').length} flagged` },
+                  { gradient: 'from-orange-500 to-orange-600', icon: <ClipboardCheck className="text-white/80 mb-4" size={32} />, label: 'Inspection Reports', value: inspections.filter(i => i.hasReport).length,                             sub: `${inspections.filter(i => i.reportLocked).length} submitted` },
                   { gradient: 'from-purple-500 to-purple-600', icon: <DollarSign    className="text-white/80 mb-4" size={32} />, label: 'Platform Revenue',    value: '$1.02M',                                                                sub: 'This month' },
                 ].map((stat) => (
                   <div key={stat.label} className={`bg-gradient-to-br ${stat.gradient} rounded-2xl p-6 text-white`}>
@@ -809,9 +857,9 @@ export default function AdminDashboardPage() {
                                   placeholder="Reason for action..."
                                   className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
                                 <div className="flex gap-2">
-                                  <button onClick={clearAction} disabled={!actionReason.trim()}
+                                  <button onClick={() => handleSuspendUser(user)} disabled={!actionReason.trim() || userSuspending}
                                     className="flex-1 px-3 py-2 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
-                                    Suspend
+                                    {userSuspending ? 'Suspending…' : 'Suspend'}
                                   </button>
                                   <button onClick={clearAction} className="px-3 py-2 bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-300 transition-colors">Cancel</button>
                                 </div>
@@ -854,79 +902,99 @@ export default function AdminDashboardPage() {
           {activeTab === 'reports' && (
             <div className="space-y-6">
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2 inline-flex gap-2">
-                {(['all', 'active', 'flagged'] as const).map((f) => (
-                  <button key={f} onClick={() => setReportFilter(f)}
-                    className={`px-4 py-2 font-semibold rounded-lg transition-colors ${reportFilter === f ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
-                    {f === 'all' ? 'All Reports' : f.charAt(0).toUpperCase() + f.slice(1)}
+                {([
+                  { value: 'all',       label: 'All' },
+                  { value: 'ongoing',   label: 'Ongoing' },
+                  { value: 'submitted', label: 'Submitted' },
+                ] as const).map((f) => (
+                  <button key={f.value} onClick={() => setReportFilter(f.value)}
+                    className={`px-4 py-2 font-semibold rounded-lg transition-colors ${reportFilter === f.value ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
+                    {f.label}
                   </button>
                 ))}
               </div>
 
-              <div className="space-y-4">
-                {getFilteredReports().map((report) => (
-                  <div key={report.id} className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:shadow-lg transition-all">
-                    <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-3">
-                          <ClipboardCheck className="text-blue-600" size={24} />
-                          <h3 className="text-xl font-bold text-gray-900">{report.propertyTitle}</h3>
-                          <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${
-                            report.verdict === 'passed'                 ? 'bg-green-100 text-green-700 border-green-200' :
-                            report.verdict === 'passed_with_conditions' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
-                                                                          'bg-red-100 text-red-700 border-red-200'
-                          }`}>{report.verdict.replace(/_/g, ' ').toUpperCase()}</span>
+              {inspectionsLoading ? (
+                <div className="flex justify-center py-16"><Clock className="animate-spin text-blue-600" size={36} /></div>
+              ) : inspectionsError ? (
+                <div className="bg-white rounded-2xl p-8 text-center border border-gray-200">
+                  <p className="text-red-600 font-semibold mb-3">{inspectionsError}</p>
+                  <button onClick={loadInspections} className="px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700">Retry</button>
+                </div>
+              ) : getFilteredReports().length === 0 ? (
+                <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
+                  <ClipboardCheck className="mx-auto text-gray-300 mb-4" size={48} />
+                  <p className="text-gray-600 font-semibold">No inspections found</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {getFilteredReports().map((insp) => {
+                    const verdictColor = insp.finalVerdict === 'Passed'
+                      ? 'bg-green-100 text-green-700 border-green-200'
+                      : insp.finalVerdict === 'PassedWithConditions'
+                      ? 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                      : insp.finalVerdict === 'Failed'
+                      ? 'bg-red-100 text-red-700 border-red-200'
+                      : 'bg-gray-100 text-gray-700 border-gray-200';
+                    return (
+                      <div key={insp.inspectionId} className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:shadow-lg transition-all">
+                        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-3">
+                              <ClipboardCheck className="text-blue-600" size={24} />
+                              <h3 className="text-xl font-bold text-gray-900">{insp.propertyTitle}</h3>
+                              {insp.finalVerdict && (
+                                <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${verdictColor}`}>
+                                  {insp.finalVerdict.replace(/([A-Z])/g, ' $1').trim().toUpperCase()}
+                                </span>
+                              )}
+                              {insp.reportLocked && !insp.finalVerdict && (
+                                <span className="px-3 py-1.5 text-xs font-bold rounded-full border bg-blue-100 text-blue-700 border-blue-200">REPORT LOCKED</span>
+                              )}
+                            </div>
+                            <div className="space-y-2 mb-4">
+                              <div className="flex items-center gap-2 text-sm text-gray-700"><Users    size={16} className="text-gray-500" /><span>Inspector: <span className="font-semibold">{insp.inspectorName}</span></span></div>
+                              <div className="flex items-center gap-2 text-sm text-gray-700"><Shield   size={16} className="text-gray-500" /><span>Agent: <span className="font-semibold">{insp.agentName}</span></span></div>
+                              <div className="flex items-center gap-2 text-sm text-gray-700"><Calendar size={16} className="text-gray-500" /><span>Scheduled: <span className="font-semibold">{new Date(insp.scheduledDate).toLocaleDateString()}</span></span></div>
+                              {insp.completedAt && (
+                                <div className="flex items-center gap-2 text-sm text-gray-700"><CheckCircle size={16} className="text-gray-500" /><span>Completed: <span className="font-semibold">{new Date(insp.completedAt).toLocaleDateString()}</span></span></div>
+                              )}
+                              <span className={`inline-block px-3 py-1.5 text-xs font-bold rounded-full border ${getStatusColor(insp.status)}`}>
+                                {insp.status.replace(/([A-Z])/g, ' $1').trim().toUpperCase()}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 flex-shrink-0">
+                            <button
+                              onClick={() => setSelectedReport(selectedReport?.inspectionId === insp.inspectionId ? null : insp)}
+                              className="px-6 py-2.5 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2">
+                              <Eye size={18} /> Details
+                            </button>
+                          </div>
                         </div>
-                        <div className="space-y-2 mb-4">
-                          <div className="flex items-center gap-2 text-sm text-gray-700"><Users    size={16} className="text-gray-500" /><span>Inspector: <span className="font-semibold">{report.inspectorName}</span></span></div>
-                          <div className="flex items-center gap-2 text-sm text-gray-700"><Calendar size={16} className="text-gray-500" /><span>Submitted: <span className="font-semibold">{report.submittedDate}</span></span></div>
-                          {report.flaggedBy && (
-                            <div className="flex items-center gap-2 text-sm text-orange-700"><Flag size={16} className="text-orange-500" /><span>Flagged by: <span className="font-semibold">{report.flaggedBy}</span></span></div>
-                          )}
-                          <span className={`inline-block px-3 py-1.5 text-xs font-bold rounded-full border ${getStatusColor(report.status)}`}>{report.status.toUpperCase()}</span>
-                        </div>
+                        {selectedReport?.inspectionId === insp.inspectionId && (
+                          <div className="mt-4 pt-4 border-t border-gray-200 text-sm text-gray-600 space-y-1">
+                            <p><span className="font-semibold">Has Report:</span> {insp.hasReport ? 'Yes' : 'No'}</p>
+                            <p><span className="font-semibold">Report Locked:</span> {insp.reportLocked ? 'Yes' : 'No'}</p>
+                            {insp.finalVerdict && <p><span className="font-semibold">Final Verdict:</span> {insp.finalVerdict.replace(/([A-Z])/g, ' $1').trim()}</p>}
+                          </div>
+                        )}
                       </div>
-
-                      {selectedReport?.id === report.id ? (
-                        <div className="space-y-3 lg:w-80">
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">Action Reason (Required)</label>
-                            <textarea value={actionReason} onChange={(e) => setActionReason(e.target.value)}
-                              placeholder="Explain why this action is being taken..."
-                              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" rows={3} />
-                          </div>
-                          <div className="flex gap-2">
-                            <button onClick={() => { console.log('Flag report:', report.id, actionReason); clearAction(); }} disabled={!actionReason.trim()}
-                              className="flex-1 py-2.5 bg-orange-600 text-white font-semibold rounded-lg hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-                              <Flag size={16} /> Flag
-                            </button>
-                            <button onClick={() => { console.log('Remove report:', report.id, actionReason); clearAction(); }} disabled={!actionReason.trim()}
-                              className="flex-1 py-2.5 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-                              <Trash2 size={16} /> Remove
-                            </button>
-                            <button onClick={clearAction} className="px-4 py-2.5 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors">Cancel</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex gap-2">
-                          <button className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"><Eye size={18} /> View Report</button>
-                          <button onClick={() => setSelectedReport(report)} className="px-6 py-2.5 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"><Edit size={18} /> Manage</button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 {[
-                  { verdict: 'passed',                 label: 'Passed',                 bg: 'bg-green-50',  border: 'border-green-200',  tc: 'text-green-600',  icon: <CheckCircle className="text-green-600"  size={32} /> },
-                  { verdict: 'passed_with_conditions', label: 'Passed with Conditions', bg: 'bg-yellow-50', border: 'border-yellow-200', tc: 'text-yellow-600', icon: <AlertCircle className="text-yellow-600" size={32} /> },
-                  { verdict: 'failed',                 label: 'Failed',                 bg: 'bg-red-50',    border: 'border-red-200',    tc: 'text-red-600',    icon: <XCircle     className="text-red-600"    size={32} /> },
-                ].map(({ verdict, label, bg, border, tc, icon }) => (
-                  <div key={verdict} className={`${bg} rounded-xl p-6 border-2 ${border}`}>
+                  { key: 'Passed',               label: 'Passed',                 bg: 'bg-green-50',  border: 'border-green-200',  tc: 'text-green-600',  icon: <CheckCircle className="text-green-600"  size={32} /> },
+                  { key: 'PassedWithConditions',  label: 'Passed with Conditions', bg: 'bg-yellow-50', border: 'border-yellow-200', tc: 'text-yellow-600', icon: <AlertCircle className="text-yellow-600" size={32} /> },
+                  { key: 'Failed',                label: 'Failed',                 bg: 'bg-red-50',    border: 'border-red-200',    tc: 'text-red-600',    icon: <XCircle     className="text-red-600"    size={32} /> },
+                ].map(({ key, label, bg, border, tc, icon }) => (
+                  <div key={key} className={`${bg} rounded-xl p-6 border-2 ${border}`}>
                     <div className="flex items-center justify-between mb-4">
                       {icon}
-                      <span className={`text-3xl font-bold ${tc}`}>{inspectionReports.filter(r => r.verdict === verdict).length}</span>
+                      <span className={`text-3xl font-bold ${tc}`}>{inspections.filter(i => i.finalVerdict === key).length}</span>
                     </div>
                     <p className={`text-sm font-semibold ${tc.replace('600', '900')}`}>{label}</p>
                   </div>
@@ -938,78 +1006,109 @@ export default function AdminDashboardPage() {
           {/* ── Disputes Tab ── */}
           {activeTab === 'disputes' && (
             <div className="space-y-6">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2 inline-flex gap-2">
-                {(['all', 'open', 'investigating', 'resolved'] as const).map((f) => (
-                  <button key={f} onClick={() => setDisputeFilter(f)}
-                    className={`px-4 py-2 font-semibold rounded-lg transition-colors ${disputeFilter === f ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
-                    {f === 'all' ? 'All Disputes' : f.charAt(0).toUpperCase() + f.slice(1)}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2 inline-flex gap-2 flex-wrap">
+                {([
+                  { value: 'all',         label: 'All Disputes' },
+                  { value: 'Open',        label: 'Open' },
+                  { value: 'UnderReview', label: 'Under Review' },
+                  { value: 'Resolved',    label: 'Resolved' },
+                ] as const).map((f) => (
+                  <button key={f.value} onClick={() => setDisputeFilter(f.value)}
+                    className={`px-4 py-2 font-semibold rounded-lg transition-colors ${disputeFilter === f.value ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
+                    {f.label}
                   </button>
                 ))}
               </div>
 
-              <div className="space-y-4">
-                {getFilteredDisputes().map((dispute) => (
-                  <div key={dispute.id} className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:shadow-lg transition-all">
-                    <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-3">
-                          <MessageSquare className="text-blue-600" size={24} />
-                          <h3 className="text-xl font-bold text-gray-900">{dispute.propertyTitle}</h3>
-                          <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${
-                            dispute.disputeType === 'transaction'  ? 'bg-purple-100 text-purple-700 border-purple-200' :
-                            dispute.disputeType === 'listing'      ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                            dispute.disputeType === 'inspection'   ? 'bg-orange-100 text-orange-700 border-orange-200' :
-                                                                     'bg-red-100 text-red-700 border-red-200'
-                          }`}>{dispute.disputeType.replace(/_/g, ' ').toUpperCase()}</span>
-                        </div>
-                        <div className="space-y-2 mb-4">
-                          <div className="flex items-center gap-2 text-sm text-gray-700"><Users    size={16} className="text-gray-500" /><span>Initiated by: <span className="font-semibold">{dispute.initiatedBy}</span></span></div>
-                          <div className="flex items-center gap-2 text-sm text-gray-700"><Users    size={16} className="text-gray-500" /><span>Respondent: <span className="font-semibold">{dispute.respondent}</span></span></div>
-                          <div className="flex items-center gap-2 text-sm text-gray-700"><Calendar size={16} className="text-gray-500" /><span>Submitted: <span className="font-semibold">{dispute.submittedDate}</span></span></div>
-                          <div className="flex items-center gap-3 mt-2">
-                            <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${getStatusColor(dispute.status)}`}>{dispute.status.replace(/_/g, ' ').toUpperCase()}</span>
-                            <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${getPriorityColor(dispute.priority)}`}>{dispute.priority.toUpperCase()} PRIORITY</span>
+              {disputesLoading ? (
+                <div className="flex justify-center py-16"><Clock className="animate-spin text-blue-600" size={36} /></div>
+              ) : disputesError ? (
+                <div className="bg-white rounded-2xl p-8 text-center border border-gray-200">
+                  <p className="text-red-600 font-semibold mb-3">{disputesError}</p>
+                  <button onClick={loadDisputes} className="px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700">Retry</button>
+                </div>
+              ) : getFilteredDisputes().length === 0 ? (
+                <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
+                  <MessageSquare className="mx-auto text-gray-300 mb-4" size={48} />
+                  <p className="text-gray-600 font-semibold">No disputes found</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {getFilteredDisputes().map((dispute) => {
+                    const statusColor =
+                      dispute.status === 'Open'        ? 'bg-red-100 text-red-700 border-red-200' :
+                      dispute.status === 'UnderReview' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
+                      dispute.status === 'Resolved'    ? 'bg-green-100 text-green-700 border-green-200' :
+                                                         'bg-blue-100 text-blue-700 border-blue-200';
+                    const isSelected = selectedDispute?.disputeId === dispute.disputeId;
+                    return (
+                      <div key={dispute.disputeId} className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:shadow-lg transition-all">
+                        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-3">
+                              <MessageSquare className="text-blue-600" size={24} />
+                              <h3 className="text-xl font-bold text-gray-900">{dispute.propertyTitle}</h3>
+                              <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${statusColor}`}>
+                                {dispute.status.replace(/([A-Z])/g, ' $1').trim().toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="space-y-2 mb-4">
+                              <div className="flex items-center gap-2 text-sm text-gray-700"><Users    size={16} className="text-gray-500" /><span>Submitted by: <span className="font-semibold">{dispute.submittedByFullName}</span></span></div>
+                              <div className="flex items-center gap-2 text-sm text-gray-700"><Calendar size={16} className="text-gray-500" /><span>Submitted: <span className="font-semibold">{new Date(dispute.submittedAt).toLocaleDateString()}</span></span></div>
+                              {dispute.resolvedAt && (
+                                <div className="flex items-center gap-2 text-sm text-gray-700"><CheckCircle size={16} className="text-gray-500" /><span>Resolved: <span className="font-semibold">{new Date(dispute.resolvedAt).toLocaleDateString()}</span></span></div>
+                              )}
+                            </div>
+                            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                              <p className="text-sm text-gray-700 font-semibold mb-1">Description:</p>
+                              <p className="text-sm text-gray-600">{dispute.description}</p>
+                            </div>
+                            {dispute.resolutionOutcome && (
+                              <div className="mt-3 bg-green-50 rounded-lg p-4 border border-green-200">
+                                <p className="text-sm text-green-700 font-semibold mb-1">Resolution:</p>
+                                <p className="text-sm text-green-600">{dispute.resolutionOutcome}</p>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                          <p className="text-sm text-gray-700 font-semibold mb-1">Description:</p>
-                          <p className="text-sm text-gray-600">{dispute.description}</p>
+
+                          {isSelected ? (
+                            <div className="space-y-3 lg:w-80 flex-shrink-0">
+                              <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">Resolution Notes (Required)</label>
+                                <textarea value={actionReason} onChange={(e) => setActionReason(e.target.value)}
+                                  placeholder="Enter resolution details..."
+                                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" rows={4} />
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleResolveDispute(dispute)}
+                                  disabled={!actionReason.trim() || disputeResolving}
+                                  className="flex-1 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+                                  <CheckCircle size={16} /> {disputeResolving ? 'Resolving…' : 'Resolve'}
+                                </button>
+                                <button onClick={clearAction} className="px-4 py-2.5 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors">Cancel</button>
+                              </div>
+                            </div>
+                          ) : dispute.status !== 'Resolved' ? (
+                            <button
+                              onClick={() => setSelectedDispute(dispute)}
+                              className="flex-shrink-0 px-6 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2">
+                              <CheckCircle size={18} /> Resolve
+                            </button>
+                          ) : null}
                         </div>
                       </div>
-
-                      {selectedDispute?.id === dispute.id ? (
-                        <div className="space-y-3 lg:w-80">
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">Resolution Notes (Required)</label>
-                            <textarea value={actionReason} onChange={(e) => setActionReason(e.target.value)}
-                              placeholder="Enter resolution details..."
-                              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" rows={4} />
-                          </div>
-                          <div className="flex gap-2">
-                            <button onClick={() => { console.log('Resolve dispute:', dispute.id, actionReason); clearAction(); }} disabled={!actionReason.trim()}
-                              className="flex-1 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-                              <CheckCircle size={16} /> Resolve
-                            </button>
-                            <button onClick={clearAction} className="px-4 py-2.5 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors">Cancel</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex gap-2">
-                          <button className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"><Eye size={18} /> View Details</button>
-                          <button onClick={() => setSelectedDispute(dispute)} className="px-6 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"><CheckCircle size={18} /> Resolve</button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
                 {[
-                  { status: 'open',          label: 'Open',         bg: 'bg-red-50',    border: 'border-red-200',    tc: 'text-red-600',    icon: <AlertCircle  className="text-red-600"    size={32} /> },
-                  { status: 'investigating', label: 'Investigating', bg: 'bg-yellow-50', border: 'border-yellow-200', tc: 'text-yellow-600', icon: <Search       className="text-yellow-600" size={32} /> },
-                  { status: 'resolved',      label: 'Resolved',     bg: 'bg-green-50',  border: 'border-green-200',  tc: 'text-green-600',  icon: <CheckCircle  className="text-green-600"  size={32} /> },
-                  { status: 'closed',        label: 'Closed',       bg: 'bg-blue-50',   border: 'border-blue-200',   tc: 'text-blue-600',   icon: <XCircle      className="text-blue-600"   size={32} /> },
+                  { status: 'Open',        label: 'Open',         bg: 'bg-red-50',    border: 'border-red-200',    tc: 'text-red-600',    icon: <AlertCircle className="text-red-600"    size={32} /> },
+                  { status: 'UnderReview', label: 'Under Review', bg: 'bg-yellow-50', border: 'border-yellow-200', tc: 'text-yellow-600', icon: <Search      className="text-yellow-600" size={32} /> },
+                  { status: 'Resolved',    label: 'Resolved',     bg: 'bg-green-50',  border: 'border-green-200',  tc: 'text-green-600',  icon: <CheckCircle className="text-green-600"  size={32} /> },
+                  { status: 'Escalated',   label: 'Escalated',    bg: 'bg-blue-50',   border: 'border-blue-200',   tc: 'text-blue-600',   icon: <XCircle     className="text-blue-600"   size={32} /> },
                 ].map(({ status, label, bg, border, tc, icon }) => (
                   <div key={status} className={`${bg} rounded-xl p-6 border-2 ${border}`}>
                     <div className="flex items-center justify-between mb-4">

@@ -5,14 +5,20 @@ using TrustEstate.Domain.Entities;
 using TrustEstate.Domain.Enums;
 using TrustEstate.Domain.Exceptions;
 using TrustEstate.Infrastructure.Persistence;
+using TrustEstate.Application.Interfaces.Notifications;
 
 namespace TrustEstate.Infrastructure.Services;
 
 public class AdminService : IAdminService
 {
     private readonly TrustEstateDbContext _db;
+    private readonly INotificationService _notifications;
 
-    public AdminService(TrustEstateDbContext db) => _db = db;
+    public AdminService(TrustEstateDbContext db, INotificationService notifications)
+    {
+        _db = db;
+        _notifications = notifications;
+    }
 
     public async Task<IEnumerable<PendingVerificationDto>> GetPendingVerificationsAsync(CancellationToken ct = default)
     {
@@ -152,5 +158,103 @@ public class AdminService : IAdminService
                 CreatedAt = u.CreatedAt,
             })
             .ToListAsync(ct);
+    }
+
+    public async Task SuspendUserAsync(int userId, string? reason, CancellationToken ct = default)
+    {
+        var user = await _db.Users.FindAsync(new object[] { userId }, ct)
+            ?? throw new NotFoundException("User", userId);
+
+        if (user.AccountStatus == AccountStatus.Suspended)
+            throw new BusinessRuleException("User is already suspended.");
+
+        user.AccountStatus = AccountStatus.Suspended;
+        await _db.SaveChangesAsync(ct);
+
+        await _notifications.CreateAsync(userId, NotificationType.AccountDecision,
+            "Account Suspended",
+            reason is { Length: > 0 } r ? $"Your account has been suspended. Reason: {r}" : "Your account has been suspended by an administrator.",
+            null, null, ct);
+    }
+
+    public async Task<IEnumerable<AdminInspectionDto>> GetAllInspectionsAsync(CancellationToken ct = default)
+    {
+        return await _db.Inspections
+            .Include(i => i.Listing)
+            .Include(i => i.Inspector)
+            .Include(i => i.Agent)
+            .Include(i => i.Report)
+            .OrderByDescending(i => i.ScheduledDate)
+            .Select(i => new AdminInspectionDto
+            {
+                InspectionId = i.InspectionId,
+                PropertyTitle = i.Listing.Title,
+                InspectorName = $"{i.Inspector.FirstName} {i.Inspector.LastName}".Trim(),
+                AgentName = $"{i.Agent.FirstName} {i.Agent.LastName}".Trim(),
+                Status = i.Status.ToString(),
+                ScheduledDate = i.ScheduledDate,
+                CompletedAt = i.CompletedAt,
+                FinalVerdict = i.Report != null ? i.Report.FinalVerdict.ToString() : null,
+                HasReport = i.Report != null,
+                ReportLocked = i.Report != null && i.Report.IsLocked,
+            })
+            .ToListAsync(ct);
+    }
+
+    public async Task<IEnumerable<AdminDisputeDto>> GetAllDisputesAsync(CancellationToken ct = default)
+    {
+        return await _db.Disputes
+            .Include(d => d.SubmittedBy)
+            .Include(d => d.Transaction).ThenInclude(t => t.Listing)
+            .OrderByDescending(d => d.SubmittedAt)
+            .Select(d => new AdminDisputeDto
+            {
+                DisputeId = d.DisputeId,
+                TransactionId = d.TransactionId,
+                SubmittedByFullName = $"{d.SubmittedBy.FirstName} {d.SubmittedBy.LastName}".Trim(),
+                PropertyTitle = d.Transaction.Listing.Title,
+                Description = d.Description,
+                Status = d.Status.ToString(),
+                ResolutionOutcome = d.ResolutionOutcome,
+                SubmittedAt = d.SubmittedAt,
+                ResolvedAt = d.ResolvedAt,
+            })
+            .ToListAsync(ct);
+    }
+
+    public async Task ResolveDisputeAsync(int disputeId, string resolutionOutcome, CancellationToken ct = default)
+    {
+        var dispute = await _db.Disputes
+            .Include(d => d.Transaction)
+            .Include(d => d.SubmittedBy)
+            .FirstOrDefaultAsync(d => d.DisputeId == disputeId, ct)
+            ?? throw new NotFoundException(nameof(Dispute), disputeId);
+
+        if (dispute.Status == DisputeStatus.Resolved)
+            throw new BusinessRuleException("Dispute is already resolved.");
+
+        dispute.Status = DisputeStatus.Resolved;
+        dispute.ResolutionOutcome = resolutionOutcome;
+        dispute.ResolvedAt = DateTime.UtcNow;
+
+        var transaction = dispute.Transaction;
+        if (transaction.Status == TransactionStatus.Disputed)
+            transaction.Status = TransactionStatus.Active;
+
+        await _db.SaveChangesAsync(ct);
+
+        var listing = await _db.Listings.FindAsync(new object[] { transaction.ListingId }, ct);
+        var title = listing?.Title ?? $"Listing #{transaction.ListingId}";
+
+        var participantIds = new[] { transaction.BuyerId, transaction.OwnerId, transaction.AgentId }
+            .Distinct();
+
+        foreach (var recipientId in participantIds)
+        {
+            await _notifications.CreateAsync(recipientId, NotificationType.DisputeUpdate,
+                "Dispute Resolved",
+                $"The dispute for '{title}' has been resolved. Outcome: {resolutionOutcome}",
+                "Dispute", dispute.DisputeId, ct);
+        }
     }
 }

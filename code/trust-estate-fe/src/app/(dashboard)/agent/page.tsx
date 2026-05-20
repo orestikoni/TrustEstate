@@ -36,12 +36,13 @@ import { useAuth } from '@/store/auth.context';
 import { offerService } from '@/services/offer.service';
 import { listingService, type ApiListing, type ListingPhoto } from '@/services/listing.service';
 import { messageService, type MessageThreadDto, type MessageDto } from '@/services/message.service';
+import { inspectionService, type InspectorDto, type InspectionDto } from '@/services/inspection.service';
+import { transactionService, type TransactionStatusDto } from '@/services/transaction.service';
 import { ApiRequestError } from '@/lib/api-client';
 import type { OfferDto } from '@/types';
 
 type ListingStatus = 'pending_review' | 'corrections_requested' | 'active' | 'under_offer' | 'closed';
 type OfferStatus = 'pending' | 'countered' | 'accepted' | 'declined';
-type TransactionStatus = 'offer_accepted' | 'inspection_scheduled' | 'inspection_completed' | 'ready_to_close' | 'closed';
 
 interface ListingAssignment {
   id: number;
@@ -86,32 +87,6 @@ interface NegotiationRound {
   date: string;
 }
 
-interface PropertyInspector {
-  id: number;
-  name: string;
-  licenseNumber: string;
-  verified: boolean;
-  rating: number;
-  completedInspections: number;
-  specialties: string[];
-  available: boolean;
-  nextAvailableDate: string;
-}
-
-interface Transaction {
-  id: number;
-  listingId: number;
-  listingTitle: string;
-  buyerName: string;
-  ownerName: string;
-  offerAmount: number;
-  status: TransactionStatus;
-  offerAcceptedDate?: string;
-  inspectionScheduledDate?: string;
-  inspectionCompletedDate?: string;
-  estimatedClosingDate?: string;
-  canClose: boolean;
-}
 
 
 function mapApiListingToAssignment(l: ApiListing): ListingAssignment {
@@ -142,21 +117,6 @@ function mapApiListingToAssignment(l: ApiListing): ListingAssignment {
   };
 }
 
-// Inspectors, transactions, conversations are not yet backed by API endpoints
-const mockInspectors: PropertyInspector[] = [
-  { id: 1, name: 'John Smith',     licenseNumber: 'INS-12345-CA', verified: true, rating: 4.9, completedInspections: 487, specialties: ['Residential', 'Luxury Properties', 'Foundation'], available: true,  nextAvailableDate: '2024-03-18' },
-  { id: 2, name: 'Maria Garcia',   licenseNumber: 'INS-23456-CA', verified: true, rating: 4.8, completedInspections: 342, specialties: ['Residential', 'Commercial', 'Plumbing'],            available: true,  nextAvailableDate: '2024-03-16' },
-  { id: 3, name: 'Robert Johnson', licenseNumber: 'INS-34567-CA', verified: true, rating: 5.0, completedInspections: 612, specialties: ['Luxury Properties', 'Electrical', 'HVAC'],          available: false, nextAvailableDate: '2024-03-25' },
-];
-
-const mockTransactions: Transaction[] = [
-  {
-    id: 1, listingId: 104, listingTitle: 'Beachfront Paradise',
-    buyerName: 'John Smith', ownerName: 'Lisa Anderson',
-    offerAmount: 2050000, status: 'offer_accepted',
-    offerAcceptedDate: '2024-03-14', canClose: false,
-  },
-];
 
 
 
@@ -175,8 +135,15 @@ export default function AgentDashboardPage() {
   const [counterMessage, setCounterMessage] = useState('');
   const [counterDeadline, setCounterDeadline] = useState('');
   const [showInspectorModal, setShowInspectorModal] = useState(false);
-  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<ListingAssignment | null>(null);
   const [notifications, setNotifications] = useState<ApiNotification[]>([]);
+  const [inspectorsList, setInspectorsList] = useState<InspectorDto[]>([]);
+  const [inspectorsLoading, setInspectorsLoading] = useState(false);
+  const [listingInspections, setListingInspections] = useState<Record<number, InspectionDto>>({});
+  const [listingTxStatus, setListingTxStatus] = useState<Record<number, TransactionStatusDto>>({});
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
+  const [assignDate, setAssignDate] = useState('');
+  const [assignLoading, setAssignLoading] = useState(false);
 
   const [offers, setOffers] = useState<Offer[]>([]);
   const [offersLoading, setOffersLoading] = useState(false);
@@ -303,6 +270,38 @@ export default function AgentDashboardPage() {
     finally { setMsgSendLoading(false); }
   }, [activeThread, messageText, user]);
 
+  const loadTransactionData = useCallback(async () => {
+    const underOffer = assignments.filter(a => a.listingStatus === 'under_offer');
+    if (underOffer.length === 0) return;
+    setTransactionsLoading(true);
+    try {
+      const [inspResults, txResults] = await Promise.all([
+        Promise.allSettled(underOffer.map(l => inspectionService.getInspectionByListing(l.listingId))),
+        Promise.allSettled(underOffer.map(l => transactionService.getTransactionStatus(l.listingId))),
+      ]);
+      const newInspections: Record<number, InspectionDto> = {};
+      const newStatuses: Record<number, TransactionStatusDto> = {};
+      inspResults.forEach((r, i) => { if (r.status === 'fulfilled') newInspections[underOffer[i].listingId] = r.value; });
+      txResults.forEach((r, i) => { if (r.status === 'fulfilled') newStatuses[underOffer[i].listingId] = r.value; });
+      setListingInspections(newInspections);
+      setListingTxStatus(newStatuses);
+    } catch { /* silently ignore */ }
+    finally { setTransactionsLoading(false); }
+  }, [assignments]);
+
+  useEffect(() => {
+    if (activeTab === 'transactions') loadTransactionData();
+  }, [activeTab, loadTransactionData]);
+
+  const loadInspectors = useCallback(async () => {
+    setInspectorsLoading(true);
+    try {
+      const data = await inspectionService.getAvailableInspectors();
+      setInspectorsList(data);
+    } catch { /* silently ignore */ }
+    finally { setInspectorsLoading(false); }
+  }, []);
+
   const showToast = useCallback((message: string, type: 'error' | 'success' | 'warning' = 'error') => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast({ message, type });
@@ -351,15 +350,6 @@ export default function AgentDashboardPage() {
     }
   };
 
-  const getTransactionStatusConfig = (status: TransactionStatus) => {
-    switch (status) {
-      case 'offer_accepted':        return { label: 'Offer Accepted',        color: 'bg-green-100 text-green-700 border-green-300',    icon: CheckCircle };
-      case 'inspection_scheduled':  return { label: 'Inspection Scheduled',  color: 'bg-blue-100 text-blue-700 border-blue-300',       icon: Calendar };
-      case 'inspection_completed':  return { label: 'Inspection Completed',  color: 'bg-purple-100 text-purple-700 border-purple-300', icon: ClipboardCheck };
-      case 'ready_to_close':        return { label: 'Ready to Close',        color: 'bg-orange-100 text-orange-700 border-orange-300', icon: AlertCircle };
-      case 'closed':                return { label: 'Closed',                color: 'bg-gray-100 text-gray-700 border-gray-300',       icon: XCircle };
-    }
-  };
 
   const resetTabs = () => { setSelectedListing(null); setSelectedOffer(null); };
 
@@ -468,11 +458,40 @@ export default function AgentDashboardPage() {
     } finally { setActionLoading(false); }
   };
 
-  const handleAssignInspector = (i: PropertyInspector, date: string) => { console.log('Assigning inspector:', { inspectorId: i.id, date }); setShowInspectorModal(false); };
-  const handleCloseTransaction = (t: Transaction) => {
-    if (!t.canClose) { showToast('This transaction cannot be closed yet. All steps must be completed first.', 'warning'); return; }
-    showConfirm(`Close the transaction for "${t.listingTitle}"?`, 'Close Transaction', 'primary', () => {
-      console.log('Closing transaction:', t.id);
+  const handleAssignInspector = useCallback(async (inspector: InspectorDto) => {
+    if (!selectedTransaction || !assignDate) return;
+    const acceptedOffer = offers.find(o => o.listingId === selectedTransaction.listingId && o.status === 'accepted');
+    if (!acceptedOffer) { showToast('Could not find the accepted offer for this listing.'); return; }
+    setAssignLoading(true);
+    try {
+      const insp = await inspectionService.assignInspector({
+        listingId: selectedTransaction.listingId,
+        offerId: acceptedOffer.id,
+        inspectorId: inspector.userId,
+        scheduledDate: new Date(assignDate).toISOString(),
+      });
+      setListingInspections(prev => ({ ...prev, [selectedTransaction.listingId]: insp }));
+      setShowInspectorModal(false);
+      setAssignDate('');
+      showToast('Inspector assigned and inspection scheduled.', 'success');
+    } catch (err) {
+      showToast(toUserMessage(err, 'Failed to assign inspector. Please try again.'));
+    } finally { setAssignLoading(false); }
+  }, [selectedTransaction, assignDate, offers, showToast, toUserMessage]);
+
+  const handleCloseTransaction = (listing: ListingAssignment) => {
+    const txStatus = listingTxStatus[listing.listingId];
+    if (!txStatus?.canClose) { showToast('This transaction cannot be closed yet. All steps must be completed first.', 'warning'); return; }
+    showConfirm(`Close the transaction for "${listing.title}"?`, 'Close Transaction', 'primary', async () => {
+      try {
+        await transactionService.closeTransaction(listing.listingId);
+        showToast('Transaction closed successfully.', 'success');
+        await loadData();
+        setListingInspections({});
+        setListingTxStatus({});
+      } catch (err) {
+        showToast(toUserMessage(err, 'Failed to close the transaction. Please try again.'));
+      }
     });
   };
 
@@ -674,7 +693,7 @@ export default function AgentDashboardPage() {
                     sub: `Total: ${acceptedAssignments.length}`, icon: <Building className="text-green-500" size={24} /> },
                   { label: 'Pending Offers', value: offers.filter(o => o.status === 'pending' || o.status === 'countered').length,
                     sub: 'Require action', icon: <FileText className="text-blue-500" size={24} /> },
-                  { label: 'Active Transactions', value: mockTransactions.filter(t => t.status !== 'closed').length,
+                  { label: 'Active Transactions', value: assignments.filter(a => a.listingStatus === 'under_offer').length,
                     sub: 'In progress', icon: <ClipboardCheck className="text-purple-500" size={24} /> },
                 ].map((stat) => (
                   <div key={stat.label} className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all">
@@ -1204,129 +1223,177 @@ export default function AgentDashboardPage() {
           )}
 
           {/* ── Transactions Tab ── */}
-          {activeTab === 'transactions' && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
-                <p className="text-gray-700 font-semibold mb-6">
-                  You have {mockTransactions.length} active transaction{mockTransactions.length !== 1 ? 's' : ''}
-                </p>
-                <div className="space-y-6">
-                  {mockTransactions.map((transaction) => {
-                    const sc = getTransactionStatusConfig(transaction.status);
-                    const Icon = sc.icon;
-                    return (
-                      <div key={transaction.id} className="p-6 bg-gray-50 rounded-2xl border border-gray-200">
-                        <div className="flex items-start justify-between mb-4">
-                          <div>
-                            <h3 className="text-xl font-bold text-gray-900 mb-2">{transaction.listingTitle}</h3>
-                            <p className="text-sm text-gray-600">Buyer: {transaction.buyerName}</p>
-                            <p className="text-sm text-gray-600">Owner: {transaction.ownerName}</p>
-                            <div className="flex items-center gap-2 mt-2">
-                              <span className="text-sm text-gray-600">Sale Amount:</span>
-                              <span className="text-xl font-bold text-blue-600">{formatPrice(transaction.offerAmount)}</span>
-                            </div>
-                          </div>
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-full border ${sc.color}`}>
-                            <Icon size={14} />{sc.label}
-                          </span>
-                        </div>
-
-                        <div className="mb-4 p-4 bg-white rounded-lg border border-gray-200">
-                          <h4 className="text-sm font-bold text-gray-900 mb-3">Transaction Progress</h4>
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-3">
-                              <CheckCircle className="text-green-600" size={18} />
-                              <span className="text-sm text-gray-700">Offer Accepted — {transaction.offerAcceptedDate}</span>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              {transaction.inspectionScheduledDate ? <CheckCircle className="text-green-600" size={18} /> : <Clock className="text-gray-400" size={18} />}
-                              <span className="text-sm text-gray-700">Inspection {transaction.inspectionScheduledDate ? `Scheduled — ${transaction.inspectionScheduledDate}` : 'Pending'}</span>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              {transaction.inspectionCompletedDate ? <CheckCircle className="text-green-600" size={18} /> : <Clock className="text-gray-400" size={18} />}
-                              <span className="text-sm text-gray-700">Inspection {transaction.inspectionCompletedDate ? `Completed — ${transaction.inspectionCompletedDate}` : 'Pending'}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex gap-3">
-                          {!transaction.inspectionScheduledDate && (
-                            <button onClick={() => { setSelectedTransaction(transaction); setShowInspectorModal(true); }}
-                              className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
-                              <Calendar size={18} /> Assign Inspector
-                            </button>
-                          )}
-                          {transaction.canClose && (
-                            <button onClick={() => handleCloseTransaction(transaction)}
-                              className="flex-1 py-3 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-700 transition-colors flex items-center justify-center gap-2">
-                              <CheckCircle size={18} /> Close Transaction
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Inspector Modal */}
-              {showInspectorModal && selectedTransaction && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                  <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                    <div className="p-6 border-b border-gray-200">
-                      <div className="flex items-center justify-between">
-                        <h2 className="text-2xl font-bold text-gray-900">Assign Property Inspector</h2>
-                        <button onClick={() => setShowInspectorModal(false)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                          <X size={24} />
-                        </button>
-                      </div>
-                      <p className="text-gray-600 mt-2">Select a verified inspector for: {selectedTransaction.listingTitle}</p>
+          {activeTab === 'transactions' && (() => {
+            const underOfferListings = assignments.filter(a => a.listingStatus === 'under_offer');
+            return (
+              <div className="space-y-6">
+                <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
+                  {transactionsLoading ? (
+                    <div className="flex justify-center py-16"><Loader2 className="animate-spin text-blue-600" size={40} /></div>
+                  ) : underOfferListings.length === 0 ? (
+                    <div className="text-center py-16">
+                      <ClipboardCheck className="mx-auto text-gray-400 mb-4" size={48} />
+                      <p className="text-gray-600 font-semibold">No active transactions</p>
+                      <p className="text-sm text-gray-500">Transactions appear here after you accept a buyer's offer</p>
                     </div>
-                    <div className="p-6 space-y-4">
-                      {mockInspectors.map((inspector) => (
-                        <div key={inspector.id} className={`p-6 rounded-xl border-2 transition-all ${inspector.available ? 'border-gray-200 hover:border-blue-500 bg-white' : 'border-gray-200 bg-gray-50 opacity-60'}`}>
-                          <div className="flex items-start justify-between mb-4">
-                            <div>
-                              <div className="flex items-center gap-3 mb-2">
-                                <h3 className="text-lg font-bold text-gray-900">{inspector.name}</h3>
-                                {inspector.verified && (
-                                  <div className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-lg">
-                                    <CheckCircle size={14} /><span className="text-xs font-bold">Verified</span>
+                  ) : (
+                    <>
+                      <p className="text-gray-700 font-semibold mb-6">
+                        You have {underOfferListings.length} active transaction{underOfferListings.length !== 1 ? 's' : ''}
+                      </p>
+                      <div className="space-y-6">
+                        {underOfferListings.map((listing) => {
+                          const acceptedOffer = offers.find(o => o.listingId === listing.listingId && o.status === 'accepted');
+                          const inspection = listingInspections[listing.listingId];
+                          const txStatus = listingTxStatus[listing.listingId];
+                          const hasInspection = !!inspection;
+                          const inspCompleted = inspection?.status === 'Completed';
+                          const verdictDone = inspection?.report?.isLocked === true;
+                          return (
+                            <div key={listing.listingId} className="p-6 bg-gray-50 rounded-2xl border border-gray-200">
+                              <div className="flex items-start justify-between mb-4">
+                                <div>
+                                  <h3 className="text-xl font-bold text-gray-900 mb-2">{listing.title}</h3>
+                                  <p className="text-sm text-gray-600">Owner: {listing.ownerName}</p>
+                                  {acceptedOffer && (
+                                    <>
+                                      <p className="text-sm text-gray-600">Buyer: {acceptedOffer.buyerName}</p>
+                                      <div className="flex items-center gap-2 mt-2">
+                                        <span className="text-sm text-gray-600">Sale Amount:</span>
+                                        <span className="text-xl font-bold text-blue-600">{formatPrice(acceptedOffer.proposedPrice)}</span>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-full border bg-purple-100 text-purple-700 border-purple-300">
+                                  <FileText size={14} /> Under Offer
+                                </span>
+                              </div>
+
+                              <div className="mb-4 p-4 bg-white rounded-lg border border-gray-200">
+                                <h4 className="text-sm font-bold text-gray-900 mb-3">Transaction Progress</h4>
+                                <div className="space-y-2">
+                                  <div className="flex items-center gap-3">
+                                    <CheckCircle className="text-green-600" size={18} />
+                                    <span className="text-sm text-gray-700">Offer Accepted</span>
                                   </div>
+                                  <div className="flex items-center gap-3">
+                                    {hasInspection ? <CheckCircle className="text-green-600" size={18} /> : <Clock className="text-gray-400" size={18} />}
+                                    <span className="text-sm text-gray-700">
+                                      {hasInspection
+                                        ? `Inspection Scheduled — ${new Date(inspection.scheduledDate).toLocaleDateString()}`
+                                        : 'Inspection Pending Assignment'}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    {inspCompleted ? <CheckCircle className="text-green-600" size={18} /> : <Clock className="text-gray-400" size={18} />}
+                                    <span className="text-sm text-gray-700">
+                                      {inspCompleted
+                                        ? `Inspection Completed — ${inspection.completedAt ? new Date(inspection.completedAt).toLocaleDateString() : ''}`
+                                        : `Inspection ${hasInspection ? `In Progress (${inspection.status})` : 'Not Started'}`}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    {verdictDone ? <CheckCircle className="text-green-600" size={18} /> : <Clock className="text-gray-400" size={18} />}
+                                    <span className="text-sm text-gray-700">
+                                      {verdictDone ? 'Verdict Submitted — Report Locked' : 'Verdict Pending'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex gap-3">
+                                {!hasInspection && (
+                                  <button
+                                    onClick={() => { setSelectedTransaction(listing); setShowInspectorModal(true); loadInspectors(); }}
+                                    className="flex-1 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                                  >
+                                    <Calendar size={18} /> Assign Inspector
+                                  </button>
+                                )}
+                                {txStatus?.canClose && (
+                                  <button
+                                    onClick={() => handleCloseTransaction(listing)}
+                                    className="flex-1 py-3 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                                  >
+                                    <CheckCircle size={18} /> Close Transaction
+                                  </button>
                                 )}
                               </div>
-                              <p className="text-sm text-gray-600 mb-2">License: {inspector.licenseNumber}</p>
-                              <div className="flex items-center gap-4 mb-3">
-                                <div className="flex items-center gap-1"><span className="text-yellow-500">★</span><span className="text-sm font-semibold text-gray-900">{inspector.rating}</span></div>
-                                <span className="text-sm text-gray-600">{inspector.completedInspections} inspections</span>
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {inspector.specialties.map((s, i) => (
-                                  <span key={i} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg">{s}</span>
-                                ))}
-                              </div>
                             </div>
-                            <div className="text-right">
-                              {inspector.available
-                                ? <><p className="text-sm text-gray-600 mb-2">Next Available:</p><p className="text-sm font-bold text-green-600">{inspector.nextAvailableDate}</p></>
-                                : <p className="text-sm font-bold text-red-600">Not Available</p>
-                              }
-                            </div>
-                          </div>
-                          {inspector.available && (
-                            <button onClick={() => handleAssignInspector(inspector, inspector.nextAvailableDate)}
-                              className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors">
-                              Assign Inspector
-                            </button>
-                          )}
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Inspector Modal */}
+                {showInspectorModal && selectedTransaction && (
+                  <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+                      <div className="p-6 border-b border-gray-200">
+                        <div className="flex items-center justify-between">
+                          <h2 className="text-2xl font-bold text-gray-900">Assign Property Inspector</h2>
+                          <button onClick={() => { setShowInspectorModal(false); setAssignDate(''); }} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                            <X size={24} />
+                          </button>
                         </div>
-                      ))}
+                        <p className="text-gray-600 mt-2">Select a verified inspector for: <strong>{selectedTransaction.title}</strong></p>
+                      </div>
+                      <div className="p-6 space-y-4">
+                        <div>
+                          <label className="block text-sm font-bold text-gray-900 mb-2">Scheduled Inspection Date</label>
+                          <input
+                            type="date"
+                            value={assignDate}
+                            onChange={(e) => setAssignDate(e.target.value)}
+                            min={new Date().toISOString().split('T')[0]}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        </div>
+                        {inspectorsLoading ? (
+                          <div className="flex justify-center py-8"><Loader2 className="animate-spin text-blue-600" size={32} /></div>
+                        ) : inspectorsList.length === 0 ? (
+                          <div className="text-center py-8">
+                            <Users className="mx-auto text-gray-400 mb-3" size={40} />
+                            <p className="text-gray-600 font-semibold">No verified inspectors available</p>
+                            <p className="text-sm text-gray-500">Inspectors must be verified by an admin before assignment</p>
+                          </div>
+                        ) : (
+                          inspectorsList.map((inspector) => (
+                            <div key={inspector.userId} className="p-6 rounded-xl border-2 border-gray-200 hover:border-blue-500 bg-white transition-all">
+                              <div className="flex items-start justify-between mb-4">
+                                <div>
+                                  <div className="flex items-center gap-3 mb-2">
+                                    <h3 className="text-lg font-bold text-gray-900">{inspector.firstName} {inspector.lastName}</h3>
+                                    <div className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-lg">
+                                      <CheckCircle size={14} /><span className="text-xs font-bold">Verified</span>
+                                    </div>
+                                  </div>
+                                  {inspector.professionalQualifications && (
+                                    <p className="text-sm text-gray-600">{inspector.professionalQualifications}</p>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handleAssignInspector(inspector)}
+                                disabled={!assignDate || assignLoading}
+                                className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                              >
+                                {assignLoading ? <Loader2 size={20} className="animate-spin" /> : <Calendar size={20} />}
+                                {assignDate ? 'Assign Inspector' : 'Select a date first'}
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            );
+          })()}
 
           {/* ── Messages Tab ── */}
           {activeTab === 'messages' && (
