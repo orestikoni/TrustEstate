@@ -72,12 +72,19 @@ public sealed class ListingRepository : IListingRepository
             .ToListAsync(ct);
 
     public async Task<IEnumerable<Listing>> GetByAgentIdAsync(int agentId, CancellationToken ct = default)
-        => await _db.Listings
+    {
+        var assignedListingIds = await _db.ListingAssignments
+            .Where(a => a.AgentId == agentId && a.AssignmentStatus != AssignmentStatus.Declined)
+            .Select(a => a.ListingId)
+            .ToListAsync(ct);
+
+        return await _db.Listings
             .Include(l => l.Owner)
             .Include(l => l.Photos.OrderBy(p => p.DisplayOrder))
-            .Where(l => l.AgentId == agentId)
+            .Where(l => assignedListingIds.Contains(l.ListingId))
             .OrderByDescending(l => l.CreatedAt)
             .ToListAsync(ct);
+    }
 
     public async Task AddAsync(Listing listing, CancellationToken ct = default)
         => await _db.Listings.AddAsync(listing, ct);
@@ -106,20 +113,16 @@ public sealed class ListingRepository : IListingRepository
 
     public Task<ListingAssignment?> GetPendingAssignmentAsync(int listingId, int agentId, CancellationToken ct = default)
         => _db.ListingAssignments
-            .FirstOrDefaultAsync(a =>
-                a.ListingId == listingId &&
-                a.AgentId == agentId &&
-                a.AssignmentStatus == AssignmentStatus.Pending, ct);
+            .Where(a => a.ListingId == listingId && a.AgentId == agentId && a.AssignmentStatus == AssignmentStatus.Pending)
+            .OrderByDescending(a => a.RequestedAt)
+            .FirstOrDefaultAsync(ct);
 
     // ── Agents ────────────────────────────────────────────────────────────────
 
     public async Task<IEnumerable<User>> GetVerifiedAgentsAsync(CancellationToken ct = default)
         => await _db.Users
             .Include(u => u.AgentProfile)
-            .Where(u => u.Role == UserRole.Agent
-                        && u.AccountStatus == AccountStatus.Active
-                        && u.AgentProfile != null
-                        && u.AgentProfile.IsVerified)
+            .Where(u => u.Role == UserRole.Agent && u.AccountStatus == AccountStatus.Active)
             .ToListAsync(ct);
 
     // ── Shared ────────────────────────────────────────────────────────────────

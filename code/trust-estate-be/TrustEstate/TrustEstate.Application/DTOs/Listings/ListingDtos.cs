@@ -151,6 +151,7 @@ public sealed record ListingDto
     public string PropertyType { get; init; } = string.Empty;
     public string Status { get; init; } = string.Empty;
     public int OwnerId { get; init; }
+    public string? OwnerName { get; init; }
     public int? AgentId { get; init; }
     public string? CorrectionNotes { get; init; }
     public string? ModerationNotes { get; init; }

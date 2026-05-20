@@ -5,6 +5,7 @@ using TrustEstate.Application.Interfaces.Auth;
 using TrustEstate.Domain.Entities;
 using TrustEstate.Domain.Enums;
 using TrustEstate.Infrastructure.Persistence;
+using AgencyTypeEnum = TrustEstate.Domain.Enums.AgencyType;
 
 namespace TrustEstate.Infrastructure.Services;
 
@@ -104,6 +105,29 @@ public class AuthService : IAuthService
 
         _db.Users.Add(user);
         await _db.SaveChangesAsync(ct);
+
+        if (role == UserRole.Agent)
+        {
+            Enum.TryParse<AgencyTypeEnum>(request.AgencyType, out var agencyType);
+            _db.Set<AgentProfile>().Add(new AgentProfile
+            {
+                UserId = user.Id,
+                AgencyType = agencyType,
+                AgencyName = request.AgencyName,
+                IsVerified = false,
+            });
+            await _db.SaveChangesAsync(ct);
+        }
+        else if (role == UserRole.PropertyInspector)
+        {
+            _db.Set<InspectorProfile>().Add(new InspectorProfile
+            {
+                UserId = user.Id,
+                ProfessionalQualifications = request.ProfessionalQualifications,
+                IsVerified = false,
+            });
+            await _db.SaveChangesAsync(ct);
+        }
 
         return new RegisterResponseDto
         {

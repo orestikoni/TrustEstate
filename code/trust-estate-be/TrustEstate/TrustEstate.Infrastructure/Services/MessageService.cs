@@ -144,22 +144,24 @@ public sealed class MessageService : IMessageService
     private async Task<bool> IsAllowedToMessageAsync(int userId, int recipientId, int listingId, CancellationToken ct)
     {
         var listing = await _db.Listings.FindAsync(listingId);
-        if (listing is null) return false;
+        if (listing is null || !listing.AgentId.HasValue) return false;
 
-        var involvedUserIds = new HashSet<int>();
+        var agentId = listing.AgentId.Value;
+        var ownerId = listing.OwnerId;
 
-        if (listing.AgentId.HasValue) involvedUserIds.Add(listing.AgentId.Value);
-        involvedUserIds.Add(listing.OwnerId);
+        // Rule: Owner ↔ Agent only
+        bool ownerAgentPair =
+            (userId == ownerId && recipientId == agentId) ||
+            (userId == agentId && recipientId == ownerId);
+        if (ownerAgentPair) return true;
 
-        var buyerIds = await _db.Offers
-            .Where(o => o.ListingId == listingId)
-            .Select(o => o.BuyerId)
-            .Distinct()
-            .ToListAsync(ct);
+        // Rule: Buyer ↔ Agent only (buyer must have submitted an offer on this listing)
+        bool agentIsInvolved = userId == agentId || recipientId == agentId;
+        if (!agentIsInvolved) return false;
 
-        foreach (var id in buyerIds) involvedUserIds.Add(id);
-
-        return involvedUserIds.Contains(userId) && involvedUserIds.Contains(recipientId);
+        int buyerCandidateId = userId == agentId ? recipientId : userId;
+        return await _db.Offers
+            .AnyAsync(o => o.ListingId == listingId && o.BuyerId == buyerCandidateId, ct);
     }
 
     private static MessageDto MapMessageToDto(Message m, User? senderOverride = null) => new()

@@ -137,7 +137,8 @@ public sealed class ListingService : IListingService
     public async Task<ListingAssignmentDto> RespondToAssignmentAsync(int agentId, int listingId, RespondToAssignmentRequest request, CancellationToken ct = default)
     {
         var assignment = await _repo.GetPendingAssignmentAsync(listingId, agentId, ct)
-            ?? throw new NotFoundException("Assignment", $"listing {listingId} for agent {agentId}");
+            ?? throw new BusinessRuleException(
+                "No pending assignment found. This assignment has already been accepted or declined.");
 
         var listing = await _repo.GetByIdAsync(listingId, ct)
             ?? throw new NotFoundException(nameof(Listing), listingId);
@@ -281,8 +282,8 @@ public sealed class ListingService : IListingService
             UserId = u.Id,
             FirstName = u.FirstName,
             LastName = u.LastName,
-            AgencyName = u.AgentProfile?.AgencyName,
-            AgencyType = u.AgentProfile?.AgencyType.ToString() ?? string.Empty,
+            AgencyName = u.AgentProfile?.AgencyName ?? u.AgencyName,
+            AgencyType = u.AgentProfile?.AgencyType.ToString() ?? u.AgencyType ?? string.Empty,
         });
     }
 
@@ -381,6 +382,7 @@ public sealed class ListingService : IListingService
         PropertyType = l.PropertyType.ToString(),
         Status = l.Status.ToString(),
         OwnerId = l.OwnerId,
+        OwnerName = l.Owner != null ? $"{l.Owner.FirstName} {l.Owner.LastName}".Trim() : null,
         AgentId = l.AgentId,
         CorrectionNotes = l.CorrectionNotes,
         ModerationNotes = l.ModerationNotes,

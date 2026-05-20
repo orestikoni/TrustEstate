@@ -39,13 +39,28 @@ public class AdminService : IAdminService
 
     public async Task ApproveVerificationAsync(int userId, CancellationToken ct = default)
     {
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct)
+        var user = await _db.Users
+            .Include(u => u.AgentProfile)
+            .Include(u => u.InspectorProfile)
+            .FirstOrDefaultAsync(u => u.Id == userId, ct)
             ?? throw new NotFoundException("User", userId);
 
         if (user.AccountStatus != AccountStatus.Pending)
             throw new InvalidOperationException("User is not pending verification.");
 
         user.AccountStatus = AccountStatus.Active;
+
+        if (user.Role == UserRole.Agent && user.AgentProfile != null)
+        {
+            user.AgentProfile.IsVerified = true;
+            user.AgentProfile.VerifiedAt = DateTime.UtcNow;
+        }
+        else if (user.Role == UserRole.PropertyInspector && user.InspectorProfile != null)
+        {
+            user.InspectorProfile.IsVerified = true;
+            user.InspectorProfile.VerifiedAt = DateTime.UtcNow;
+        }
+
         await _db.SaveChangesAsync(ct);
     }
 
