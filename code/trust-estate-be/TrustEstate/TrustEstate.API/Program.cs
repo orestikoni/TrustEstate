@@ -14,10 +14,13 @@ using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var jwtKey = builder.Configuration["Jwt:Key"];
+builder.Configuration.AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true);
+
+var jwtKey = builder.Configuration["Jwt:Key"] ?? Environment.GetEnvironmentVariable("JWT__KEY");
 if (string.IsNullOrWhiteSpace(jwtKey))
     throw new InvalidOperationException(
-        "Jwt:Key is not configured. Set the JWT__KEY environment variable or add it to appsettings.Development.json.");
+        $"Jwt:Key is not configured for environment '{builder.Environment.EnvironmentName}'. " +
+        $"Set the JWT__KEY environment variable or add it to appsettings.{builder.Environment.EnvironmentName}.json.");
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
