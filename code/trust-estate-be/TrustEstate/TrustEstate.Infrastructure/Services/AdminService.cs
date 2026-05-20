@@ -203,23 +203,38 @@ public class AdminService : IAdminService
 
     public async Task<IEnumerable<AdminDisputeDto>> GetAllDisputesAsync(CancellationToken ct = default)
     {
-        return await _db.Disputes
+        var disputes = await _db.Disputes
             .Include(d => d.SubmittedBy)
             .Include(d => d.Transaction).ThenInclude(t => t.Listing)
+            .Include(d => d.Transaction).ThenInclude(t => t.Buyer)
+            .Include(d => d.Transaction).ThenInclude(t => t.Owner)
+            .Include(d => d.Transaction).ThenInclude(t => t.Agent)
+            .Include(d => d.Transaction).ThenInclude(t => t.Offer)
+                .ThenInclude(o => o.Inspection).ThenInclude(i => i.Report)
             .OrderByDescending(d => d.SubmittedAt)
-            .Select(d => new AdminDisputeDto
-            {
-                DisputeId = d.DisputeId,
-                TransactionId = d.TransactionId,
-                SubmittedByFullName = $"{d.SubmittedBy.FirstName} {d.SubmittedBy.LastName}".Trim(),
-                PropertyTitle = d.Transaction.Listing.Title,
-                Description = d.Description,
-                Status = d.Status.ToString(),
-                ResolutionOutcome = d.ResolutionOutcome,
-                SubmittedAt = d.SubmittedAt,
-                ResolvedAt = d.ResolvedAt,
-            })
             .ToListAsync(ct);
+
+        return disputes.Select(d => new AdminDisputeDto
+        {
+            DisputeId = d.DisputeId,
+            TransactionId = d.TransactionId,
+            ListingId = d.Transaction.ListingId,
+            PropertyTitle = d.Transaction.Listing.Title,
+            ListingAddress = $"{d.Transaction.Listing.Address}, {d.Transaction.Listing.City}",
+            AskingPrice = d.Transaction.Listing.AskingPrice,
+            SubmittedByFullName = $"{d.SubmittedBy.FirstName} {d.SubmittedBy.LastName}".Trim(),
+            BuyerName = $"{d.Transaction.Buyer.FirstName} {d.Transaction.Buyer.LastName}".Trim(),
+            OwnerName = $"{d.Transaction.Owner.FirstName} {d.Transaction.Owner.LastName}".Trim(),
+            AgentName = $"{d.Transaction.Agent.FirstName} {d.Transaction.Agent.LastName}".Trim(),
+            AcceptedOfferPrice = d.Transaction.Offer.ProposedPrice,
+            NegotiationRounds = d.Transaction.Offer.NegotiationRound,
+            InspectionVerdict = d.Transaction.Offer.Inspection?.Report?.FinalVerdict?.ToString(),
+            Description = d.Description,
+            Status = d.Status.ToString(),
+            ResolutionOutcome = d.ResolutionOutcome,
+            SubmittedAt = d.SubmittedAt,
+            ResolvedAt = d.ResolvedAt,
+        });
     }
 
     public async Task ResolveDisputeAsync(int disputeId, string resolutionOutcome, CancellationToken ct = default)

@@ -6,8 +6,9 @@ import { notificationService, type ApiNotification, formatNotificationDate } fro
 import { authService } from '@/services/auth.service';
 import { tokenStorage, ApiRequestError } from '@/lib/api-client';
 import { offerService } from '@/services/offer.service';
-import { listingService, type ApiListing } from '@/services/listing.service';
+import { listingService, type ApiListing, type ListingFilterParams } from '@/services/listing.service';
 import { inspectionService, type InspectionReportDto } from '@/services/inspection.service';
+import { disputeService, type DisputeDto } from '@/services/dispute.service';
 import { messageService, type MessageThreadDto, type MessageDto } from '@/services/message.service';
 import type { User, OfferDto, PostInspectionOptionsDto } from '@/types';
 import { PostInspectionPanel } from '@/components/shared/PostInspectionPanel';
@@ -39,6 +40,7 @@ import {
   Users,
   Edit3,
   Loader2,
+  Shield,
 } from 'lucide-react';
 
 // ─── Local display types ──────────────────────────────────────────────────────
@@ -124,7 +126,7 @@ export default function BuyerDashboardPage() {
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'favorites' | 'offers' | 'messages' | 'notifications' | 'browse'
+    'dashboard' | 'favorites' | 'offers' | 'messages' | 'notifications' | 'browse' | 'disputes'
   >('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
@@ -160,6 +162,18 @@ export default function BuyerDashboardPage() {
   const [browseListings, setBrowseListings] = useState<ApiListing[]>([]);
   const [browseLoading, setBrowseLoading] = useState(false);
   const [browseError, setBrowseError] = useState<string | null>(null);
+  const [searchCity, setSearchCity] = useState('');
+  const [searchPropertyType, setSearchPropertyType] = useState('');
+  const [searchPriceRange, setSearchPriceRange] = useState('');
+
+  // Disputes state
+  const [disputes, setDisputes] = useState<DisputeDto[]>([]);
+  const [disputesLoading, setDisputesLoading] = useState(false);
+  const [disputeListingId, setDisputeListingId] = useState('');
+  const [disputeDescription, setDisputeDescription] = useState('');
+  const [disputeSubmitting, setDisputeSubmitting] = useState(false);
+  const [disputeSubmitError, setDisputeSubmitError] = useState<string | null>(null);
+  const [disputeSubmitSuccess, setDisputeSubmitSuccess] = useState(false);
 
 
   useEffect(() => {
@@ -211,11 +225,22 @@ export default function BuyerDashboardPage() {
 
   // ── Load active listings (Browse tab) ──────────────────────────────────────
 
-  const loadBrowseListings = useCallback(async () => {
+  const loadBrowseListings = useCallback(async (filters?: { city?: string; propertyType?: string; priceRange?: string }) => {
     setBrowseLoading(true);
     setBrowseError(null);
+    const params: ListingFilterParams = { pageSize: 20 };
+    if (filters?.city?.trim()) params.city = filters.city.trim();
+    if (filters?.propertyType) params.propertyType = filters.propertyType;
+    if (filters?.priceRange) {
+      switch (filters.priceRange) {
+        case '0-500k':  params.minPrice = 0;       params.maxPrice = 500000;   break;
+        case '500k-1m': params.minPrice = 500000;  params.maxPrice = 1000000;  break;
+        case '1m-2m':   params.minPrice = 1000000; params.maxPrice = 2000000;  break;
+        case '2m+':     params.minPrice = 2000000;                             break;
+      }
+    }
     try {
-      const result = await listingService.getActiveListings({ pageSize: 20 });
+      const result = await listingService.getActiveListings(params);
       setBrowseListings(result.items);
     } catch (err) {
       setBrowseError(
@@ -229,6 +254,53 @@ export default function BuyerDashboardPage() {
   useEffect(() => {
     if (activeTab === 'browse') loadBrowseListings();
   }, [activeTab, loadBrowseListings]);
+
+  const handleSearch = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    loadBrowseListings({ city: searchCity, propertyType: searchPropertyType, priceRange: searchPriceRange });
+  }, [searchCity, searchPropertyType, searchPriceRange, loadBrowseListings]);
+
+  const handleClearSearch = useCallback(() => {
+    setSearchCity('');
+    setSearchPropertyType('');
+    setSearchPriceRange('');
+    loadBrowseListings();
+  }, [loadBrowseListings]);
+
+  // ── Disputes ───────────────────────────────────────────────────────────────
+
+  const loadDisputes = useCallback(async () => {
+    setDisputesLoading(true);
+    try {
+      const data = await disputeService.getMyDisputes();
+      setDisputes(data);
+    } catch { /* silently ignore */ }
+    finally { setDisputesLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'disputes') loadDisputes();
+  }, [activeTab, loadDisputes]);
+
+  const handleSubmitDispute = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!disputeListingId) { setDisputeSubmitError('Please select a listing.'); return; }
+    if (!disputeDescription.trim()) { setDisputeSubmitError('Please enter a description.'); return; }
+    setDisputeSubmitting(true);
+    setDisputeSubmitError(null);
+    setDisputeSubmitSuccess(false);
+    try {
+      await disputeService.submitDispute({ listingId: parseInt(disputeListingId), description: disputeDescription.trim() });
+      setDisputeDescription('');
+      setDisputeListingId('');
+      setDisputeSubmitSuccess(true);
+      await loadDisputes();
+    } catch (err) {
+      setDisputeSubmitError(err instanceof ApiRequestError ? err.apiError.message : 'Failed to submit dispute.');
+    } finally {
+      setDisputeSubmitting(false);
+    }
+  }, [disputeListingId, disputeDescription, loadDisputes]);
 
   // ── Messages ───────────────────────────────────────────────────────────────
 
@@ -535,6 +607,8 @@ export default function BuyerDashboardPage() {
           { tab: 'browse',        icon: <Search size={20} />,        label: 'Browse Properties' },
           { tab: 'favorites',     icon: <Heart size={20} />,         label: 'Saved Favorites', count: favorites.length },
           { tab: 'offers',        icon: <FileText size={20} />,      label: 'My Offers',       count: offers.length },
+          { tab: 'disputes',      icon: <Shield size={20} />,        label: 'Disputes',
+            count: disputes.filter(d => d.status === 'Open' || d.status === 'UnderReview').length || undefined },
           { tab: 'messages',      icon: <MessageSquare size={20} />, label: 'Messages' },
           { tab: 'notifications', icon: <Bell size={20} />,          label: 'Notifications',
             count: notifications.filter((n) => !n.isRead).length, countColor: 'bg-red-500' },
@@ -590,40 +664,96 @@ export default function BuyerDashboardPage() {
       </aside>
 
       <main className="flex-1 overflow-auto">
+        {activeTab === 'browse' && (
         <header className="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-sm">
           <div className="px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <div className="flex items-center gap-3">
+                <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors shrink-0">
                   <Menu size={24} className="text-gray-700" />
                 </button>
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">
-                    {activeTab === 'dashboard'     && 'Buyer Dashboard'}
-                    {activeTab === 'browse'        && 'Browse Properties'}
-                    {activeTab === 'favorites'     && 'Saved Favorites'}
-                    {activeTab === 'offers'        && (selectedOffer ? `Offer — ${selectedOffer.propertyTitle}` : 'My Offers')}
-                    {activeTab === 'messages'      && 'Messages'}
-                    {activeTab === 'notifications' && 'Notifications'}
-                  </h1>
-                  <p className="text-sm text-gray-600 mt-0.5">
-                    {activeTab === 'dashboard' && 'Overview of your property search activity'}
-                    {activeTab === 'browse'    && 'All active listings available for purchase or rent'}
-                    {activeTab === 'favorites' && "Properties you've saved for later"}
-                    {activeTab === 'offers' && !selectedOffer && 'Track all your submitted offers'}
-                  </p>
-                </div>
+                <form onSubmit={handleSearch} className="flex-1">
+                  <div className="bg-gray-50 rounded-full border border-gray-200 overflow-hidden">
+                    <div className="flex items-center">
+
+                      {/* Location */}
+                      <div className="flex flex-1 items-center gap-3 px-5 py-2.5 border-r border-gray-200 hover:bg-white/80 transition-colors group">
+                        <div className="bg-blue-50 p-1.5 rounded-full text-blue-600 group-hover:bg-blue-100 transition-colors shrink-0">
+                          <MapPin size={16} />
+                        </div>
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-0.5">Location</span>
+                          <input
+                            type="text"
+                            value={searchCity}
+                            onChange={e => setSearchCity(e.target.value)}
+                            placeholder="City, neighbourhood..."
+                            className="bg-transparent border-none outline-none text-sm text-gray-700 placeholder:text-gray-400 p-0 w-full"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Property Type */}
+                      <div className="hidden sm:flex flex-1 items-center gap-3 px-5 py-2.5 border-r border-gray-200 hover:bg-white/80 transition-colors group">
+                        <div className="bg-blue-50 p-1.5 rounded-full text-blue-600 group-hover:bg-blue-100 transition-colors shrink-0">
+                          <Home size={16} />
+                        </div>
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-0.5">Property Type</span>
+                          <select
+                            value={searchPropertyType}
+                            onChange={e => setSearchPropertyType(e.target.value)}
+                            className="bg-transparent border-none outline-none text-sm text-gray-700 cursor-pointer p-0 appearance-none w-full focus:ring-0"
+                          >
+                            <option value="">Any Type</option>
+                            <option value="Apartment">Apartment</option>
+                            <option value="House">House</option>
+                            <option value="Commercial">Commercial</option>
+                            <option value="Land">Land</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Price Range */}
+                      <div className="hidden md:flex flex-1 items-center gap-3 px-5 py-2.5 border-r border-gray-200 hover:bg-white/80 transition-colors group">
+                        <div className="bg-blue-50 p-1.5 rounded-full text-blue-600 group-hover:bg-blue-100 transition-colors shrink-0">
+                          <DollarSign size={16} />
+                        </div>
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-0.5">Price Range</span>
+                          <select
+                            value={searchPriceRange}
+                            onChange={e => setSearchPriceRange(e.target.value)}
+                            className="bg-transparent border-none outline-none text-sm text-gray-700 cursor-pointer p-0 appearance-none w-full focus:ring-0"
+                          >
+                            <option value="">Any Price</option>
+                            <option value="0-500k">Under $500K</option>
+                            <option value="500k-1m">$500K – $1M</option>
+                            <option value="1m-2m">$1M – $2M</option>
+                            <option value="2m+">Over $2M</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Search Button */}
+                      <div className="p-2">
+                        <button
+                          type="submit"
+                          disabled={browseLoading}
+                          className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-70 text-white rounded-full py-2.5 px-5 flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-600/30 font-semibold text-sm whitespace-nowrap"
+                        >
+                          {browseLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+                          Search
+                        </button>
+                      </div>
+
+                    </div>
+                  </div>
+                </form>
               </div>
-              <button
-                onClick={() => setActiveTab('browse')}
-                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all shadow-lg"
-              >
-                <Search size={20} />
-                <span className="hidden sm:inline">Browse Properties</span>
-              </button>
-            </div>
           </div>
         </header>
+        )}
 
         <div className="px-4 sm:px-6 lg:px-8 py-8">
 
@@ -639,7 +769,7 @@ export default function BuyerDashboardPage() {
                   <AlertCircle className="mx-auto text-red-400 mb-4" size={48} />
                   <p className="text-red-600 font-semibold">{browseError}</p>
                   <button
-                    onClick={loadBrowseListings}
+                    onClick={() => loadBrowseListings()}
                     className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
                   >
                     Retry
@@ -648,95 +778,104 @@ export default function BuyerDashboardPage() {
               ) : browseListings.length === 0 ? (
                 <div className="text-center py-16">
                   <Search className="mx-auto text-gray-400 mb-4" size={48} />
-                  <p className="text-gray-600 font-semibold">No active listings found.</p>
+                  <p className="text-gray-600 font-semibold">No listings match your search.</p>
+                  <button
+                    onClick={handleClearSearch}
+                    className="mt-3 text-blue-600 hover:underline text-sm font-semibold"
+                  >
+                    Clear filters
+                  </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {browseListings.map((listing) => {
-                    const alreadyFavorited = favorites.some((f) => f.listingId === listing.listingId);
-                    return (
-                      <div
-                        key={listing.listingId}
-                        className="group bg-white rounded-2xl overflow-hidden border border-gray-200 shadow-md hover:shadow-xl transition-all hover:-translate-y-1 duration-300 flex flex-col"
-                      >
-                        {/* Image */}
-                        <div className="relative h-48 overflow-hidden bg-gray-100 flex-shrink-0">
-                          {listing.photos[0] ? (
-                            <img
-                              src={listing.photos[0].photoUrl}
-                              alt={listing.title}
-                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                              onError={(e) => {
-                                (e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg';
-                              }}
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-300">
-                              <Home size={48} />
-                            </div>
-                          )}
-                          {/* Listing type badge */}
-                          <span className="absolute top-3 left-3 px-2.5 py-1 bg-blue-600 text-white text-xs font-bold rounded-full shadow">
-                            For {listing.listingType}
-                          </span>
-                          {/* Favorite toggle */}
-                          <button
-                            onClick={async () => {
-                              try {
-                                if (alreadyFavorited) {
-                                  await listingService.removeFavorite(listing.listingId);
-                                } else {
-                                  await listingService.saveFavorite(listing.listingId);
-                                }
-                                await loadFavorites();
-                              } catch { /* ignore */ }
-                            }}
-                            className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-sm rounded-full shadow hover:bg-white transition-all"
-                          >
-                            <Heart
-                              size={18}
-                              className={alreadyFavorited ? 'fill-red-500 text-red-500' : 'text-gray-400'}
-                            />
-                          </button>
-                        </div>
-
-                        {/* Details */}
-                        <div className="p-5 flex flex-col flex-1">
-                          <p className="text-xl font-bold text-blue-600 mb-1">
-                            {formatPrice(listing.askingPrice)}
-                            {listing.listingType === 'Rent' && (
-                              <span className="text-sm font-medium text-gray-500">/mo</span>
+                <>
+                  <p className="text-sm text-gray-500">
+                    Showing {browseListings.length} propert{browseListings.length === 1 ? 'y' : 'ies'}
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {browseListings.map((listing) => {
+                      const alreadyFavorited = favorites.some((f) => f.listingId === listing.listingId);
+                      return (
+                        <div
+                          key={listing.listingId}
+                          className="group bg-white rounded-2xl overflow-hidden border border-gray-200 shadow-md hover:shadow-xl transition-all hover:-translate-y-1 duration-300 flex flex-col"
+                        >
+                          {/* Image */}
+                          <div className="relative h-48 overflow-hidden bg-gray-100 flex-shrink-0">
+                            {listing.photos[0] ? (
+                              <img
+                                src={listing.photos[0].photoUrl}
+                                alt={listing.title}
+                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                <Home size={48} />
+                              </div>
                             )}
-                          </p>
-                          <h3 className="font-bold text-gray-900 text-base mb-1 line-clamp-1">
-                            {listing.title}
-                          </h3>
-                          <div className="flex items-center gap-1.5 text-gray-500 text-sm mb-1">
-                            <MapPin size={13} />
-                            <span className="truncate">{listing.city}, {listing.country}</span>
+                            <span className="absolute top-3 left-3 px-2.5 py-1 bg-blue-600 text-white text-xs font-bold rounded-full shadow">
+                              For {listing.listingType}
+                            </span>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  if (alreadyFavorited) {
+                                    await listingService.removeFavorite(listing.listingId);
+                                  } else {
+                                    await listingService.saveFavorite(listing.listingId);
+                                  }
+                                  await loadFavorites();
+                                } catch { /* ignore */ }
+                              }}
+                              className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-sm rounded-full shadow hover:bg-white transition-all"
+                            >
+                              <Heart
+                                size={18}
+                                className={alreadyFavorited ? 'fill-red-500 text-red-500' : 'text-gray-400'}
+                              />
+                            </button>
                           </div>
-                          <p className="text-xs text-gray-400 mb-4">{listing.propertyType}</p>
 
-                          {/* Actions */}
-                          <div className="mt-auto flex gap-2">
-                            <Link
-                              href={`/properties/${listing.listingId}`}
-                              className="flex-1 py-2.5 text-center bg-gray-100 text-gray-800 font-semibold rounded-xl hover:bg-gray-200 transition-colors text-sm flex items-center justify-center gap-1.5"
-                            >
-                              <Eye size={15} /> View
-                            </Link>
-                            <Link
-                              href={`/properties/${listing.listingId}`}
-                              className="flex-1 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors text-sm flex items-center justify-center gap-1.5"
-                            >
-                              <Send size={15} /> Offer
-                            </Link>
+                          {/* Details */}
+                          <div className="p-5 flex flex-col flex-1">
+                            <p className="text-xl font-bold text-blue-600 mb-1">
+                              {formatPrice(listing.askingPrice)}
+                              {listing.listingType === 'Rent' && (
+                                <span className="text-sm font-medium text-gray-500">/mo</span>
+                              )}
+                            </p>
+                            <h3 className="font-bold text-gray-900 text-base mb-1 line-clamp-1">
+                              {listing.title}
+                            </h3>
+                            <div className="flex items-center gap-1.5 text-gray-500 text-sm mb-1">
+                              <MapPin size={13} />
+                              <span className="truncate">{listing.city}, {listing.country}</span>
+                            </div>
+                            <p className="text-xs text-gray-400 mb-4">{listing.propertyType}</p>
+
+                            {/* Actions */}
+                            <div className="mt-auto flex gap-2">
+                              <Link
+                                href={`/properties/${listing.listingId}`}
+                                className="flex-1 py-2.5 text-center bg-gray-100 text-gray-800 font-semibold rounded-xl hover:bg-gray-200 transition-colors text-sm flex items-center justify-center gap-1.5"
+                              >
+                                <Eye size={15} /> View
+                              </Link>
+                              <Link
+                                href={`/properties/${listing.listingId}`}
+                                className="flex-1 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors text-sm flex items-center justify-center gap-1.5"
+                              >
+                                <Send size={15} /> Offer
+                              </Link>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -1289,6 +1428,123 @@ export default function BuyerDashboardPage() {
                     <strong>Note:</strong> You can only have one active offer per listing. Negotiation is limited to 3 rounds.
                   </p>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Disputes Tab ── */}
+          {activeTab === 'disputes' && (
+            <div className="max-w-4xl mx-auto space-y-6">
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+                <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                  <Shield size={20} className="text-blue-600" />
+                  Submit a Dispute
+                </h2>
+
+                {disputeSubmitSuccess && (
+                  <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-2">
+                    <CheckCircle size={18} className="text-green-600" />
+                    <p className="text-sm text-green-700 font-semibold">Dispute submitted successfully.</p>
+                  </div>
+                )}
+
+                {disputeSubmitError && (
+                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2">
+                    <AlertCircle size={18} className="text-red-600" />
+                    <p className="text-sm text-red-700">{disputeSubmitError}</p>
+                  </div>
+                )}
+
+                {(() => {
+                  const acceptedOffers = offers.filter(o => o.status === 'accepted');
+                  if (acceptedOffers.length === 0) return (
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-center">
+                      <Shield className="mx-auto text-blue-400 mb-2" size={32} />
+                      <p className="text-blue-900 font-semibold">No eligible listings</p>
+                      <p className="text-sm text-blue-800 mt-1">Disputes can only be submitted for listings where your offer has been accepted.</p>
+                    </div>
+                  );
+                  return (
+                    <form onSubmit={handleSubmitDispute} className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-bold text-gray-900 mb-2">Property</label>
+                        <select
+                          value={disputeListingId}
+                          onChange={(e) => { setDisputeListingId(e.target.value); setDisputeSubmitError(null); setDisputeSubmitSuccess(false); }}
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                        >
+                          <option value="">Select a property…</option>
+                          {acceptedOffers.map((o) => (
+                            <option key={o.listingId} value={o.listingId}>{o.propertyTitle}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-gray-900 mb-2">Description</label>
+                        <textarea
+                          rows={5}
+                          value={disputeDescription}
+                          onChange={(e) => { setDisputeDescription(e.target.value); setDisputeSubmitError(null); setDisputeSubmitSuccess(false); }}
+                          placeholder="Describe the issue in detail…"
+                          maxLength={5000}
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                        />
+                        <p className="text-xs text-gray-400 mt-1 text-right">{disputeDescription.length}/5000</p>
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={disputeSubmitting || !disputeListingId || !disputeDescription.trim()}
+                        className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {disputeSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Shield size={18} />}
+                        Submit Dispute
+                      </button>
+                    </form>
+                  );
+                })()}
+              </div>
+
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+                <h2 className="text-xl font-bold text-gray-900 mb-6">My Disputes</h2>
+                {disputesLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="animate-spin text-blue-600" size={32} />
+                  </div>
+                ) : disputes.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Shield className="mx-auto text-gray-300 mb-3" size={40} />
+                    <p className="text-gray-500">No disputes submitted yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {disputes.map((d) => {
+                      const statusColor =
+                        d.status === 'Resolved'    ? 'bg-green-100 text-green-700 border-green-300' :
+                        d.status === 'Escalated'   ? 'bg-red-100 text-red-700 border-red-300' :
+                        d.status === 'UnderReview' ? 'bg-yellow-100 text-yellow-700 border-yellow-300' :
+                                                     'bg-blue-100 text-blue-700 border-blue-300';
+                      return (
+                        <div key={d.disputeId} className="p-5 bg-gray-50 rounded-xl border border-gray-200">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <p className="font-bold text-gray-900">Dispute #{d.disputeId}</p>
+                              <p className="text-xs text-gray-500 mt-1">Transaction #{d.transactionId} · Submitted {new Date(d.submittedAt).toLocaleDateString()}</p>
+                            </div>
+                            <span className={`px-3 py-1 text-xs font-bold rounded-full border ${statusColor}`}>{d.status}</span>
+                          </div>
+                          <p className="text-sm text-gray-700 mb-3">{d.description}</p>
+                          {d.resolutionOutcome && (
+                            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                              <p className="text-xs font-bold text-green-900 mb-1">Resolution</p>
+                              <p className="text-sm text-green-800">{d.resolutionOutcome}</p>
+                              {d.resolvedAt && <p className="text-xs text-green-700 mt-1">Resolved: {new Date(d.resolvedAt).toLocaleDateString()}</p>}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -80,8 +80,17 @@ public sealed record AdminDisputeDto
 {
     public int DisputeId { get; init; }
     public int TransactionId { get; init; }
-    public string SubmittedByFullName { get; init; } = string.Empty;
+    public int ListingId { get; init; }
     public string PropertyTitle { get; init; } = string.Empty;
+    public string ListingAddress { get; init; } = string.Empty;
+    public decimal AskingPrice { get; init; }
+    public string SubmittedByFullName { get; init; } = string.Empty;
+    public string BuyerName { get; init; } = string.Empty;
+    public string OwnerName { get; init; } = string.Empty;
+    public string AgentName { get; init; } = string.Empty;
+    public decimal AcceptedOfferPrice { get; init; }
+    public int NegotiationRounds { get; init; }
+    public string? InspectionVerdict { get; init; }
     public string Description { get; init; } = string.Empty;
     public string Status { get; init; } = string.Empty;
     public string? ResolutionOutcome { get; init; }

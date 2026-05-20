@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/store/auth.context';
 import Link from 'next/link';
 import {
@@ -29,6 +29,7 @@ import {
   ChevronRight,
   Loader2,
   ImagePlus,
+  Shield,
 } from 'lucide-react';
 
 import {
@@ -41,6 +42,7 @@ import {
 } from '@/services/listing.service';
 import { offerService } from '@/services/offer.service';
 import { inspectionService, type InspectionReportDto } from '@/services/inspection.service';
+import { disputeService, type DisputeDto } from '@/services/dispute.service';
 import { ApiRequestError } from '@/lib/api-client';
 import type { OfferDto } from '@/types';
 import { notificationService, type ApiNotification, formatNotificationDate } from '@/services/notification.service';
@@ -48,7 +50,7 @@ import { messageService, type MessageThreadDto, type MessageDto } from '@/servic
 
 // ─────────────────────────── display types ───────────────────────────
 
-type ListingStatus = 'pending_review' | 'corrections_requested' | 'active' | 'inactive';
+type ListingStatus = 'pending_review' | 'corrections_requested' | 'active' | 'under_offer' | 'inactive';
 type OfferStatus = 'pending' | 'countered' | 'accepted' | 'rejected';
 
 interface Listing {
@@ -123,7 +125,7 @@ const STATUS_MAP: Record<ApiListingStatus, ListingStatus> = {
   PendingAgentReview: 'pending_review',
   CorrectionsRequested: 'corrections_requested',
   Active: 'active',
-  UnderOffer: 'active',
+  UnderOffer: 'under_offer',
   Suspended: 'inactive',
   Archived: 'inactive',
   Removed: 'inactive',
@@ -173,7 +175,7 @@ export default function OwnerDashboardPage() {
 
   // ── tab / ui state
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'create' | 'manage' | 'offers' | 'inspection' | 'messages'
+    'dashboard' | 'create' | 'manage' | 'offers' | 'inspection' | 'disputes' | 'messages'
   >('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
@@ -197,9 +199,19 @@ export default function OwnerDashboardPage() {
   const [offersLoading, setOffersLoading] = useState(false);
 
   // ── inspection report state
+  const [inspectionListingId, setInspectionListingId] = useState<number | null>(null);
   const [ownerInspectionReport, setOwnerInspectionReport] = useState<InspectionReportDto | null>(null);
   const [ownerReportLoading, setOwnerReportLoading] = useState(false);
   const [ownerReportAvailable, setOwnerReportAvailable] = useState(false);
+
+  // ── disputes state
+  const [disputes, setDisputes] = useState<DisputeDto[]>([]);
+  const [disputesLoading, setDisputesLoading] = useState(false);
+  const [disputeListingId, setDisputeListingId] = useState('');
+  const [disputeDescription, setDisputeDescription] = useState('');
+  const [disputeSubmitting, setDisputeSubmitting] = useState(false);
+  const [disputeSubmitError, setDisputeSubmitError] = useState<string | null>(null);
+  const [disputeSubmitSuccess, setDisputeSubmitSuccess] = useState(false);
 
   // ── form state
   const [editingListingId, setEditingListingId] = useState<number | null>(null);
@@ -254,17 +266,17 @@ export default function OwnerDashboardPage() {
       .finally(() => setOffersLoading(false));
   }, [activeTab, selectedListing]);
 
-  // Load inspection report when navigating to inspection tab
+  // Load inspection report when a listing is selected in the inspection tab
   useEffect(() => {
-    if (activeTab !== 'inspection' || !selectedListing) return;
+    if (activeTab !== 'inspection' || !inspectionListingId) return;
     setOwnerReportLoading(true);
     setOwnerInspectionReport(null);
     setOwnerReportAvailable(false);
-    inspectionService.getOwnerInspectionReport(selectedListing.id)
+    inspectionService.getOwnerInspectionReport(inspectionListingId)
       .then((report) => { setOwnerInspectionReport(report); setOwnerReportAvailable(true); })
       .catch(() => { setOwnerReportAvailable(false); })
       .finally(() => setOwnerReportLoading(false));
-  }, [activeTab, selectedListing]);
+  }, [activeTab, inspectionListingId]);
 
   const loadThreads = useCallback(async () => {
     setThreadsLoading(true);
@@ -278,6 +290,19 @@ export default function OwnerDashboardPage() {
   useEffect(() => {
     if (activeTab === 'messages') loadThreads();
   }, [activeTab, loadThreads]);
+
+  const loadDisputes = useCallback(async () => {
+    setDisputesLoading(true);
+    try {
+      const data = await disputeService.getMyDisputes();
+      setDisputes(data);
+    } catch { /* silently ignore */ }
+    finally { setDisputesLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'disputes') loadDisputes();
+  }, [activeTab, loadDisputes]);
 
   const handleSelectThread = useCallback(async (thread: MessageThreadDto) => {
     setActiveThread(thread);
@@ -340,7 +365,8 @@ export default function OwnerDashboardPage() {
 
   const getStatusConfig = (status: ListingStatus) => {
     switch (status) {
-      case 'active':                return { label: 'Active',                color: 'bg-green-100 text-green-700 border-green-300',   icon: CheckCircle };
+      case 'active':                return { label: 'Active',                color: 'bg-green-100 text-green-700 border-green-300',    icon: CheckCircle };
+      case 'under_offer':           return { label: 'Under Offer',           color: 'bg-purple-100 text-purple-700 border-purple-300', icon: DollarSign };
       case 'pending_review':        return { label: 'Pending Agent Review',  color: 'bg-yellow-100 text-yellow-700 border-yellow-300', icon: Clock };
       case 'corrections_requested': return { label: 'Corrections Requested', color: 'bg-orange-100 text-orange-700 border-orange-300', icon: AlertCircle };
       case 'inactive':              return { label: 'Inactive',              color: 'bg-gray-100 text-gray-700 border-gray-300',       icon: XCircle };
@@ -453,6 +479,26 @@ export default function OwnerDashboardPage() {
   const updateForm = (field: keyof ListingForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [field]: e.target.value }));
 
+  const handleSubmitDispute = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!disputeListingId) { setDisputeSubmitError('Please select a listing.'); return; }
+    if (!disputeDescription.trim()) { setDisputeSubmitError('Please enter a description.'); return; }
+    setDisputeSubmitting(true);
+    setDisputeSubmitError(null);
+    setDisputeSubmitSuccess(false);
+    try {
+      await disputeService.submitDispute({ listingId: parseInt(disputeListingId), description: disputeDescription.trim() });
+      setDisputeDescription('');
+      setDisputeListingId('');
+      setDisputeSubmitSuccess(true);
+      await loadDisputes();
+    } catch (err) {
+      setDisputeSubmitError(err instanceof ApiRequestError ? err.apiError.message : 'Failed to submit dispute.');
+    } finally {
+      setDisputeSubmitting(false);
+    }
+  };
+
   // ── sidebar
   const Sidebar = () => (
     <div className="h-full bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 flex flex-col shadow-2xl">
@@ -487,10 +533,13 @@ export default function OwnerDashboardPage() {
 
       <nav className="flex-1 p-4 space-y-2">
         {[
-          { tab: 'dashboard', icon: <Home size={20} />,        label: 'Dashboard' },
-          { tab: 'create',    icon: <Plus size={20} />,        label: 'Create Listing' },
-          { tab: 'manage',    icon: <Building size={20} />,    label: 'Manage Listings', count: displayListings.length },
-          { tab: 'messages',  icon: <MessageSquare size={20} />, label: 'Messages',
+          { tab: 'dashboard',  icon: <Home size={20} />,           label: 'Dashboard' },
+          { tab: 'create',     icon: <Plus size={20} />,           label: 'Create Listing' },
+          { tab: 'manage',     icon: <Building size={20} />,       label: 'Manage Listings', count: displayListings.length },
+          { tab: 'inspection', icon: <ClipboardCheck size={20} />, label: 'Inspection' },
+          { tab: 'disputes',   icon: <Shield size={20} />,         label: 'Disputes',
+            count: disputes.filter(d => d.status === 'Open' || d.status === 'UnderReview').length || undefined },
+          { tab: 'messages',   icon: <MessageSquare size={20} />,  label: 'Messages',
             count: threads.reduce((s, t) => s + t.unreadCount, 0) || undefined },
         ].map(({ tab, icon, label, count }) => (
           <button
@@ -594,7 +643,8 @@ export default function OwnerDashboardPage() {
                     {activeTab === 'create'     && (editingListingId ? 'Edit Listing' : 'Create New Listing')}
                     {activeTab === 'manage'     && 'Manage Listings'}
                     {activeTab === 'offers'     && `Offers — ${selectedListing?.title}`}
-                    {activeTab === 'inspection' && `Inspection Report — ${selectedListing?.title}`}
+                    {activeTab === 'inspection' && (inspectionListingId ? `Inspection — ${displayListings.find(l => l.id === inspectionListingId)?.title ?? ''}` : 'Property Inspection')}
+                    {activeTab === 'disputes'   && 'Disputes'}
                     {activeTab === 'messages'   && 'Messages'}
                   </h1>
                   <p className="text-sm text-gray-600 mt-0.5">
@@ -1282,87 +1332,230 @@ export default function OwnerDashboardPage() {
           )}
 
           {/* ── Inspection Report Tab ── */}
-          {activeTab === 'inspection' && selectedListing && (
+          {activeTab === 'inspection' && (
             <div className="max-w-4xl mx-auto space-y-6">
-              <button onClick={() => setActiveTab('dashboard')} className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold mb-4">
-                <ChevronRight size={20} className="rotate-180" />
-                Back to Dashboard
-              </button>
-
               <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
                 <div className="mb-6 pb-6 border-b border-gray-200">
                   <h2 className="text-2xl font-bold text-gray-900 mb-2">Property Inspection Report</h2>
-                  <p className="text-gray-600">{selectedListing.title}</p>
+                  <p className="text-gray-600">View the locked inspection report for your properties under offer.</p>
                 </div>
 
-                {ownerReportLoading && (
-                  <div className="flex items-center justify-center py-16">
-                    <Loader2 className="animate-spin text-blue-600" size={40} />
-                  </div>
-                )}
+                {/* Listing picker */}
+                <div className="mb-6">
+                  <label className="block text-sm font-bold text-gray-900 mb-2">Select Property</label>
+                  {(() => {
+                    const underOfferListings = displayListings.filter(l => l.apiStatus === 'UnderOffer');
+                    if (underOfferListings.length === 0) return (
+                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-center">
+                        <ClipboardCheck className="mx-auto text-blue-400 mb-2" size={32} />
+                        <p className="text-blue-900 font-semibold">No properties under offer</p>
+                        <p className="text-sm text-blue-800 mt-1">Inspection reports are available once an offer has been accepted on your listing.</p>
+                      </div>
+                    );
+                    return (
+                      <select
+                        value={inspectionListingId ?? ''}
+                        onChange={(e) => setInspectionListingId(e.target.value ? parseInt(e.target.value) : null)}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                      >
+                        <option value="">Choose a property…</option>
+                        {underOfferListings.map((l) => (
+                          <option key={l.id} value={l.id}>{l.title}</option>
+                        ))}
+                      </select>
+                    );
+                  })()}
+                </div>
 
-                {!ownerReportLoading && !ownerReportAvailable && (
-                  <div className="p-6 bg-blue-50 border border-blue-200 rounded-xl text-center">
-                    <ClipboardCheck className="mx-auto text-blue-400 mb-3" size={40} />
-                    <p className="text-blue-900 font-semibold mb-1">Inspection Report Not Yet Available</p>
-                    <p className="text-sm text-blue-800">The inspection report will appear here once the inspector submits and locks it.</p>
-                  </div>
-                )}
+                {inspectionListingId && (
+                  <>
+                    {ownerReportLoading && (
+                      <div className="flex items-center justify-center py-16">
+                        <Loader2 className="animate-spin text-blue-600" size={40} />
+                      </div>
+                    )}
 
-                {!ownerReportLoading && ownerReportAvailable && ownerInspectionReport && (() => {
-                  const r = ownerInspectionReport;
-                  const verdictColor = r.finalVerdict === 'Passed'
-                    ? 'bg-green-50 border-green-300'
-                    : r.finalVerdict === 'Failed'
-                    ? 'bg-red-50 border-red-300'
-                    : 'bg-yellow-50 border-yellow-300';
-                  const verdictTextColor = r.finalVerdict === 'Passed' ? 'text-green-900' : r.finalVerdict === 'Failed' ? 'text-red-900' : 'text-yellow-900';
-                  return (
-                    <>
-                      {r.finalVerdict && (
-                        <div className={`mb-8 p-6 border-2 rounded-xl ${verdictColor}`}>
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${r.finalVerdict === 'Passed' ? 'bg-green-500' : r.finalVerdict === 'Failed' ? 'bg-red-500' : 'bg-yellow-500'}`}>
-                              <CheckCircle className="text-white" size={24} />
+                    {!ownerReportLoading && !ownerReportAvailable && (
+                      <div className="p-6 bg-blue-50 border border-blue-200 rounded-xl text-center">
+                        <ClipboardCheck className="mx-auto text-blue-400 mb-3" size={40} />
+                        <p className="text-blue-900 font-semibold mb-1">Inspection Report Not Yet Available</p>
+                        <p className="text-sm text-blue-800">The report will appear here once the inspector submits and locks it.</p>
+                      </div>
+                    )}
+
+                    {!ownerReportLoading && ownerReportAvailable && ownerInspectionReport && (() => {
+                      const r = ownerInspectionReport;
+                      const verdictColor = r.finalVerdict === 'Passed'
+                        ? 'bg-green-50 border-green-300'
+                        : r.finalVerdict === 'Failed'
+                        ? 'bg-red-50 border-red-300'
+                        : 'bg-yellow-50 border-yellow-300';
+                      const verdictTextColor = r.finalVerdict === 'Passed' ? 'text-green-900' : r.finalVerdict === 'Failed' ? 'text-red-900' : 'text-yellow-900';
+                      return (
+                        <>
+                          {r.finalVerdict && (
+                            <div className={`mb-8 p-6 border-2 rounded-xl ${verdictColor}`}>
+                              <div className="flex items-center gap-3 mb-2">
+                                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${r.finalVerdict === 'Passed' ? 'bg-green-500' : r.finalVerdict === 'Failed' ? 'bg-red-500' : 'bg-yellow-500'}`}>
+                                  <CheckCircle className="text-white" size={24} />
+                                </div>
+                                <p className={`text-lg font-bold ${verdictTextColor}`}>
+                                  {r.finalVerdict === 'PassedWithConditions' ? 'Passed With Conditions' : r.finalVerdict}
+                                </p>
+                              </div>
+                              {r.verdictSubmittedAt && (
+                                <p className={`text-sm ${verdictTextColor}`}>Submitted: {new Date(r.verdictSubmittedAt).toLocaleDateString()}</p>
+                              )}
                             </div>
-                            <p className={`text-lg font-bold ${verdictTextColor}`}>
-                              {r.finalVerdict === 'PassedWithConditions' ? 'Passed With Conditions' : r.finalVerdict}
+                          )}
+
+                          <div className="space-y-4">
+                            {r.categories.map((cat) => (
+                              <div key={cat.categoryId} className="p-5 bg-gray-50 rounded-xl border border-gray-200">
+                                <div className="flex items-start justify-between mb-3">
+                                  <h3 className="text-lg font-bold text-gray-900">{cat.categoryName}</h3>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`px-3 py-1 text-xs font-bold rounded-full ${cat.passFail === 'Pass' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                      {cat.passFail}
+                                    </span>
+                                    <span className={`px-3 py-1 text-xs font-bold rounded-full ${
+                                      cat.severity === 'Minor' ? 'bg-blue-100 text-blue-700' :
+                                      cat.severity === 'Moderate' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                                    }`}>{cat.severity}</span>
+                                  </div>
+                                </div>
+                                <p className="text-sm text-gray-700">{cat.findings}</p>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p className="text-sm text-blue-900">
+                              <strong>Note:</strong> This report is read-only. Contact your agent through Messages for any questions.
                             </p>
                           </div>
-                          {r.verdictSubmittedAt && (
-                            <p className={`text-sm ${verdictTextColor}`}>Submitted: {new Date(r.verdictSubmittedAt).toLocaleDateString()}</p>
-                          )}
-                        </div>
-                      )}
+                        </>
+                      );
+                    })()}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
 
-                      <div className="space-y-4">
-                        {r.categories.map((cat) => (
-                          <div key={cat.categoryId} className="p-5 bg-gray-50 rounded-xl border border-gray-200">
-                            <div className="flex items-start justify-between mb-3">
-                              <h3 className="text-lg font-bold text-gray-900">{cat.categoryName}</h3>
-                              <div className="flex items-center gap-2">
-                                <span className={`px-3 py-1 text-xs font-bold rounded-full ${cat.passFail === 'Pass' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                  {cat.passFail}
-                                </span>
-                                <span className={`px-3 py-1 text-xs font-bold rounded-full ${
-                                  cat.severity === 'Minor' ? 'bg-blue-100 text-blue-700' :
-                                  cat.severity === 'Moderate' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
-                                }`}>{cat.severity}</span>
-                              </div>
-                            </div>
-                            <p className="text-sm text-gray-700">{cat.findings}</p>
-                          </div>
-                        ))}
-                      </div>
+          {/* ── Disputes Tab ── */}
+          {activeTab === 'disputes' && (
+            <div className="max-w-4xl mx-auto space-y-6">
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+                <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                  <Shield size={20} className="text-blue-600" />
+                  Submit a Dispute
+                </h2>
 
-                      <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                        <p className="text-sm text-blue-900">
-                          <strong>Note:</strong> This report is read-only. For questions about the inspection, contact your agent through the messaging panel.
-                        </p>
+                {disputeSubmitSuccess && (
+                  <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-2">
+                    <CheckCircle size={18} className="text-green-600" />
+                    <p className="text-sm text-green-700 font-semibold">Dispute submitted successfully.</p>
+                  </div>
+                )}
+
+                {disputeSubmitError && (
+                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2">
+                    <AlertCircle size={18} className="text-red-600" />
+                    <p className="text-sm text-red-700">{disputeSubmitError}</p>
+                  </div>
+                )}
+
+                {(() => {
+                  const underOfferListings = displayListings.filter(l => l.apiStatus === 'UnderOffer');
+                  if (underOfferListings.length === 0) return (
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-center">
+                      <Shield className="mx-auto text-blue-400 mb-2" size={32} />
+                      <p className="text-blue-900 font-semibold">No eligible listings</p>
+                      <p className="text-sm text-blue-800 mt-1">Disputes can only be submitted for listings currently under offer.</p>
+                    </div>
+                  );
+                  return (
+                    <form onSubmit={handleSubmitDispute} className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-bold text-gray-900 mb-2">Property</label>
+                        <select
+                          value={disputeListingId}
+                          onChange={(e) => { setDisputeListingId(e.target.value); setDisputeSubmitError(null); setDisputeSubmitSuccess(false); }}
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                        >
+                          <option value="">Select a property…</option>
+                          {underOfferListings.map((l) => (
+                            <option key={l.id} value={l.id}>{l.title}</option>
+                          ))}
+                        </select>
                       </div>
-                    </>
+                      <div>
+                        <label className="block text-sm font-bold text-gray-900 mb-2">Description</label>
+                        <textarea
+                          rows={5}
+                          value={disputeDescription}
+                          onChange={(e) => { setDisputeDescription(e.target.value); setDisputeSubmitError(null); setDisputeSubmitSuccess(false); }}
+                          placeholder="Describe the issue in detail…"
+                          maxLength={5000}
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                        />
+                        <p className="text-xs text-gray-400 mt-1 text-right">{disputeDescription.length}/5000</p>
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={disputeSubmitting || !disputeListingId || !disputeDescription.trim()}
+                        className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {disputeSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Shield size={18} />}
+                        Submit Dispute
+                      </button>
+                    </form>
                   );
                 })()}
+              </div>
+
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+                <h2 className="text-xl font-bold text-gray-900 mb-6">My Disputes</h2>
+                {disputesLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="animate-spin text-blue-600" size={32} />
+                  </div>
+                ) : disputes.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Shield className="mx-auto text-gray-300 mb-3" size={40} />
+                    <p className="text-gray-500">No disputes submitted yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {disputes.map((d) => {
+                      const statusColor =
+                        d.status === 'Resolved'    ? 'bg-green-100 text-green-700 border-green-300' :
+                        d.status === 'Escalated'   ? 'bg-red-100 text-red-700 border-red-300' :
+                        d.status === 'UnderReview' ? 'bg-yellow-100 text-yellow-700 border-yellow-300' :
+                                                     'bg-blue-100 text-blue-700 border-blue-300';
+                      return (
+                        <div key={d.disputeId} className="p-5 bg-gray-50 rounded-xl border border-gray-200">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <p className="font-bold text-gray-900">Dispute #{d.disputeId}</p>
+                              <p className="text-xs text-gray-500 mt-1">Transaction #{d.transactionId} · Submitted {new Date(d.submittedAt).toLocaleDateString()}</p>
+                            </div>
+                            <span className={`px-3 py-1 text-xs font-bold rounded-full border ${statusColor}`}>{d.status}</span>
+                          </div>
+                          <p className="text-sm text-gray-700 mb-3">{d.description}</p>
+                          {d.resolutionOutcome && (
+                            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                              <p className="text-xs font-bold text-green-900 mb-1">Resolution</p>
+                              <p className="text-sm text-green-800">{d.resolutionOutcome}</p>
+                              {d.resolvedAt && <p className="text-xs text-green-700 mt-1">Resolved: {new Date(d.resolvedAt).toLocaleDateString()}</p>}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           )}

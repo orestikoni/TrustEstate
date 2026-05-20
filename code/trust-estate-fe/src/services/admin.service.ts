@@ -67,8 +67,17 @@ export interface AdminInspection {
 export interface AdminDispute {
   disputeId: number;
   transactionId: number;
-  submittedByFullName: string;
+  listingId: number;
   propertyTitle: string;
+  listingAddress: string;
+  askingPrice: number;
+  submittedByFullName: string;
+  buyerName: string;
+  ownerName: string;
+  agentName: string;
+  acceptedOfferPrice: number;
+  negotiationRounds: number;
+  inspectionVerdict: string | null;
   description: string;
   status: string;
   resolutionOutcome: string | null;

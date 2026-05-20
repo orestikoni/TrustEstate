@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { adminService, type PendingVerification, type AdminListing, type AdminUser, type AdminInspection, type AdminDispute } from '@/services/admin.service';
 import { notificationService, type ApiNotification, formatNotificationDate } from '@/services/notification.service';
 import { ApiRequestError } from '@/lib/api-client';
@@ -39,6 +39,7 @@ import {
   FileText,
   MessageSquare,
   Bell,
+  ChevronRight,
 } from 'lucide-react';
 import {
   LineChart,
@@ -63,30 +64,6 @@ import { ListingCard } from '@/components/admin/ListingCard';
 
 
 
-const userGrowthData = [
-  { month: 'Jan', buyers: 145, owners: 78,  agents: 23 },
-  { month: 'Feb', buyers: 189, owners: 92,  agents: 28 },
-  { month: 'Mar', buyers: 234, owners: 108, agents: 34 },
-  { month: 'Apr', buyers: 267, owners: 125, agents: 41 },
-  { month: 'May', buyers: 312, owners: 143, agents: 48 },
-  { month: 'Jun', buyers: 356, owners: 167, agents: 55 },
-];
-
-const listingActivityData = [
-  { week: 'Week 1', submitted: 12, approved: 10, rejected: 2 },
-  { week: 'Week 2', submitted: 15, approved: 13, rejected: 2 },
-  { week: 'Week 3', submitted: 18, approved: 15, rejected: 3 },
-  { week: 'Week 4', submitted: 14, approved: 12, rejected: 2 },
-];
-
-const revenueData = [
-  { month: 'Jan', revenue: 450000  },
-  { month: 'Feb', revenue: 580000  },
-  { month: 'Mar', revenue: 720000  },
-  { month: 'Apr', revenue: 650000  },
-  { month: 'May', revenue: 890000  },
-  { month: 'Jun', revenue: 1020000 },
-];
 
 export default function AdminDashboardPage() {
   const { user, logout } = useAuth();
@@ -399,6 +376,68 @@ export default function AdminDashboardPage() {
     { name: 'Inspectors', value: users.filter(u => u.role === 'PropertyInspector').length,  color: '#f59e0b' },
   ].filter(item => item.value > 0);
 
+  // Derived chart data from real backend state
+  const last6MonthKeys = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
+      return {
+        key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+        label: d.toLocaleString('en-US', { month: 'short' }),
+      };
+    });
+  }, []);
+
+  // Cumulative user count per role up to each month
+  const userGrowthData = useMemo(() =>
+    last6MonthKeys.map(({ key, label }) => ({
+      month: label,
+      buyers: users.filter(u => u.role === 'Buyer' && u.createdAt.slice(0, 7) <= key).length,
+      owners: users.filter(u => u.role === 'Owner' && u.createdAt.slice(0, 7) <= key).length,
+      agents: users.filter(u => u.role === 'Agent' && u.createdAt.slice(0, 7) <= key).length,
+    })),
+  [last6MonthKeys, users]);
+
+  // Listings created in each of the last 4 calendar weeks, broken down by outcome
+  const listingActivityData = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 4 }, (_, i) => {
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - now.getDay() - (3 - i) * 7);
+      weekStart.setHours(0, 0, 0, 0);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 7);
+      const week = listings.filter(l => {
+        const d = new Date(l.createdAt);
+        return d >= weekStart && d < weekEnd;
+      });
+      return {
+        week: `Week ${i + 1}`,
+        submitted: week.length,
+        approved: week.filter(l => ['Active', 'UnderOffer', 'Archived'].includes(l.status)).length,
+        rejected: week.filter(l => ['CorrectionsRequested', 'Suspended', 'Removed'].includes(l.status)).length,
+      };
+    });
+  }, [listings]);
+
+  // Sum of asking prices for non-draft listings created in each of the last 6 months
+  const revenueData = useMemo(() => {
+    const eligible = listings.filter(l => !['PendingAgentReview', 'CorrectionsRequested'].includes(l.status));
+    return last6MonthKeys.map(({ key, label }) => ({
+      month: label,
+      revenue: eligible
+        .filter(l => l.createdAt.slice(0, 7) === key)
+        .reduce((sum, l) => sum + l.askingPrice, 0),
+    }));
+  }, [last6MonthKeys, listings]);
+
+  const currentMonthRevenue = useMemo(() => {
+    const key = last6MonthKeys[last6MonthKeys.length - 1]?.key ?? '';
+    return listings
+      .filter(l => l.createdAt.slice(0, 7) === key && !['PendingAgentReview', 'CorrectionsRequested'].includes(l.status))
+      .reduce((sum, l) => sum + l.askingPrice, 0);
+  }, [last6MonthKeys, listings]);
+
   const getFilteredReports = () => {
     if (reportFilter === 'all') return inspections;
     if (reportFilter === 'ongoing') return inspections.filter(i => !i.reportLocked);
@@ -635,7 +674,7 @@ export default function AdminDashboardPage() {
                   { gradient: 'from-blue-500 to-blue-600',     icon: <Activity      className="text-white/80 mb-4" size={32} />, label: 'Total Listings',      value: listings.length,                                                         sub: `${listings.filter(l => l.status === 'Active').length} active` },
                   { gradient: 'from-green-500 to-green-600',   icon: <UserCheck     className="text-white/80 mb-4" size={32} />, label: 'Verified Users',      value: users.filter(u => u.accountStatus === 'Active').length,                 sub: `Out of ${users.length} total` },
                   { gradient: 'from-orange-500 to-orange-600', icon: <ClipboardCheck className="text-white/80 mb-4" size={32} />, label: 'Inspection Reports', value: inspections.filter(i => i.hasReport).length,                             sub: `${inspections.filter(i => i.reportLocked).length} submitted` },
-                  { gradient: 'from-purple-500 to-purple-600', icon: <DollarSign    className="text-white/80 mb-4" size={32} />, label: 'Platform Revenue',    value: '$1.02M',                                                                sub: 'This month' },
+                  { gradient: 'from-purple-500 to-purple-600', icon: <DollarSign    className="text-white/80 mb-4" size={32} />, label: 'Platform Revenue',    value: formatPrice(currentMonthRevenue),                                        sub: 'This month' },
                 ].map((stat) => (
                   <div key={stat.label} className={`bg-gradient-to-br ${stat.gradient} rounded-2xl p-6 text-white`}>
                     {stat.icon}
@@ -1006,119 +1045,229 @@ export default function AdminDashboardPage() {
           {/* ── Disputes Tab ── */}
           {activeTab === 'disputes' && (
             <div className="space-y-6">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2 inline-flex gap-2 flex-wrap">
-                {([
-                  { value: 'all',         label: 'All Disputes' },
-                  { value: 'Open',        label: 'Open' },
-                  { value: 'UnderReview', label: 'Under Review' },
-                  { value: 'Resolved',    label: 'Resolved' },
-                ] as const).map((f) => (
-                  <button key={f.value} onClick={() => setDisputeFilter(f.value)}
-                    className={`px-4 py-2 font-semibold rounded-lg transition-colors ${disputeFilter === f.value ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
-                    {f.label}
-                  </button>
-                ))}
-              </div>
+              {!selectedDispute ? (
+                <>
+                  {/* Filter bar */}
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2 inline-flex gap-2 flex-wrap">
+                    {([
+                      { value: 'all',         label: 'All Disputes' },
+                      { value: 'Open',        label: 'Open' },
+                      { value: 'UnderReview', label: 'Under Review' },
+                      { value: 'Resolved',    label: 'Resolved' },
+                    ] as const).map((f) => (
+                      <button key={f.value} onClick={() => setDisputeFilter(f.value)}
+                        className={`px-4 py-2 font-semibold rounded-lg transition-colors ${disputeFilter === f.value ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
 
-              {disputesLoading ? (
-                <div className="flex justify-center py-16"><Clock className="animate-spin text-blue-600" size={36} /></div>
-              ) : disputesError ? (
-                <div className="bg-white rounded-2xl p-8 text-center border border-gray-200">
-                  <p className="text-red-600 font-semibold mb-3">{disputesError}</p>
-                  <button onClick={loadDisputes} className="px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700">Retry</button>
-                </div>
-              ) : getFilteredDisputes().length === 0 ? (
-                <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
-                  <MessageSquare className="mx-auto text-gray-300 mb-4" size={48} />
-                  <p className="text-gray-600 font-semibold">No disputes found</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {getFilteredDisputes().map((dispute) => {
-                    const statusColor =
-                      dispute.status === 'Open'        ? 'bg-red-100 text-red-700 border-red-200' :
-                      dispute.status === 'UnderReview' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
-                      dispute.status === 'Resolved'    ? 'bg-green-100 text-green-700 border-green-200' :
-                                                         'bg-blue-100 text-blue-700 border-blue-200';
-                    const isSelected = selectedDispute?.disputeId === dispute.disputeId;
-                    return (
-                      <div key={dispute.disputeId} className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:shadow-lg transition-all">
-                        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-3">
-                              <MessageSquare className="text-blue-600" size={24} />
-                              <h3 className="text-xl font-bold text-gray-900">{dispute.propertyTitle}</h3>
-                              <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${statusColor}`}>
-                                {dispute.status.replace(/([A-Z])/g, ' $1').trim().toUpperCase()}
-                              </span>
-                            </div>
-                            <div className="space-y-2 mb-4">
-                              <div className="flex items-center gap-2 text-sm text-gray-700"><Users    size={16} className="text-gray-500" /><span>Submitted by: <span className="font-semibold">{dispute.submittedByFullName}</span></span></div>
-                              <div className="flex items-center gap-2 text-sm text-gray-700"><Calendar size={16} className="text-gray-500" /><span>Submitted: <span className="font-semibold">{new Date(dispute.submittedAt).toLocaleDateString()}</span></span></div>
-                              {dispute.resolvedAt && (
-                                <div className="flex items-center gap-2 text-sm text-gray-700"><CheckCircle size={16} className="text-gray-500" /><span>Resolved: <span className="font-semibold">{new Date(dispute.resolvedAt).toLocaleDateString()}</span></span></div>
-                              )}
-                            </div>
-                            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                              <p className="text-sm text-gray-700 font-semibold mb-1">Description:</p>
-                              <p className="text-sm text-gray-600">{dispute.description}</p>
-                            </div>
-                            {dispute.resolutionOutcome && (
-                              <div className="mt-3 bg-green-50 rounded-lg p-4 border border-green-200">
-                                <p className="text-sm text-green-700 font-semibold mb-1">Resolution:</p>
-                                <p className="text-sm text-green-600">{dispute.resolutionOutcome}</p>
+                  {disputesLoading ? (
+                    <div className="flex justify-center py-16"><Clock className="animate-spin text-blue-600" size={36} /></div>
+                  ) : disputesError ? (
+                    <div className="bg-white rounded-2xl p-8 text-center border border-gray-200">
+                      <p className="text-red-600 font-semibold mb-3">{disputesError}</p>
+                      <button onClick={loadDisputes} className="px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700">Retry</button>
+                    </div>
+                  ) : getFilteredDisputes().length === 0 ? (
+                    <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
+                      <MessageSquare className="mx-auto text-gray-300 mb-4" size={48} />
+                      <p className="text-gray-600 font-semibold">No disputes found</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {getFilteredDisputes().map((dispute) => {
+                        const statusColor =
+                          dispute.status === 'Open'        ? 'bg-red-100 text-red-700 border-red-200' :
+                          dispute.status === 'UnderReview' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
+                          dispute.status === 'Resolved'    ? 'bg-green-100 text-green-700 border-green-200' :
+                                                             'bg-blue-100 text-blue-700 border-blue-200';
+                        return (
+                          <div key={dispute.disputeId} className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:shadow-lg transition-all">
+                            <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-3 flex-wrap">
+                                  <MessageSquare className="text-blue-600 flex-shrink-0" size={22} />
+                                  <h3 className="text-lg font-bold text-gray-900">{dispute.propertyTitle}</h3>
+                                  <span className="text-xs text-gray-500 font-medium">#{dispute.disputeId}</span>
+                                  <span className={`px-3 py-1 text-xs font-bold rounded-full border ${statusColor}`}>
+                                    {dispute.status.replace(/([A-Z])/g, ' $1').trim().toUpperCase()}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-4 text-sm text-gray-600 mb-3 flex-wrap">
+                                  <span>By <strong>{dispute.submittedByFullName}</strong></span>
+                                  <span className="text-gray-400">·</span>
+                                  <span>{new Date(dispute.submittedAt).toLocaleDateString()}</span>
+                                  {dispute.resolvedAt && (
+                                    <>
+                                      <span className="text-gray-400">·</span>
+                                      <span className="text-green-700">Resolved {new Date(dispute.resolvedAt).toLocaleDateString()}</span>
+                                    </>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-600 line-clamp-2">{dispute.description}</p>
                               </div>
-                            )}
+                              <button
+                                onClick={() => { setSelectedDispute(dispute); setActionReason(''); }}
+                                className="flex-shrink-0 px-5 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
+                              >
+                                <Eye size={16} /> Review
+                              </button>
+                            </div>
                           </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
-                          {isSelected ? (
-                            <div className="space-y-3 lg:w-80 flex-shrink-0">
-                              <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">Resolution Notes (Required)</label>
-                                <textarea value={actionReason} onChange={(e) => setActionReason(e.target.value)}
-                                  placeholder="Enter resolution details..."
-                                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" rows={4} />
-                              </div>
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => handleResolveDispute(dispute)}
-                                  disabled={!actionReason.trim() || disputeResolving}
-                                  className="flex-1 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-                                  <CheckCircle size={16} /> {disputeResolving ? 'Resolving…' : 'Resolve'}
-                                </button>
-                                <button onClick={clearAction} className="px-4 py-2.5 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors">Cancel</button>
-                              </div>
-                            </div>
-                          ) : dispute.status !== 'Resolved' ? (
-                            <button
-                              onClick={() => setSelectedDispute(dispute)}
-                              className="flex-shrink-0 px-6 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2">
-                              <CheckCircle size={18} /> Resolve
-                            </button>
-                          ) : null}
+                  {/* Stats */}
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
+                    {[
+                      { status: 'Open',        label: 'Open',         bg: 'bg-red-50',    border: 'border-red-200',    tc: 'text-red-600',    icon: <AlertCircle className="text-red-600"    size={32} /> },
+                      { status: 'UnderReview', label: 'Under Review', bg: 'bg-yellow-50', border: 'border-yellow-200', tc: 'text-yellow-600', icon: <Search      className="text-yellow-600" size={32} /> },
+                      { status: 'Resolved',    label: 'Resolved',     bg: 'bg-green-50',  border: 'border-green-200',  tc: 'text-green-600',  icon: <CheckCircle className="text-green-600"  size={32} /> },
+                      { status: 'Escalated',   label: 'Escalated',    bg: 'bg-blue-50',   border: 'border-blue-200',   tc: 'text-blue-600',   icon: <XCircle     className="text-blue-600"   size={32} /> },
+                    ].map(({ status, label, bg, border, tc, icon }) => (
+                      <div key={status} className={`${bg} rounded-xl p-6 border-2 ${border}`}>
+                        <div className="flex items-center justify-between mb-4">
+                          {icon}
+                          <span className={`text-3xl font-bold ${tc}`}>{disputes.filter(d => d.status === status).length}</span>
                         </div>
+                        <p className={`text-sm font-semibold ${tc.replace('600', '900')}`}>{label}</p>
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
+                </>
+              ) : (
+                /* ── Dispute Detail / Context View ── */
+                <div className="max-w-4xl mx-auto space-y-6">
+                  <button
+                    onClick={() => { setSelectedDispute(null); setActionReason(''); }}
+                    className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold"
+                  >
+                    <ChevronRight size={20} className="rotate-180" /> Back to Disputes
+                  </button>
+
+                  {/* Header */}
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                    <div className="flex items-start justify-between gap-4 flex-wrap">
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold mb-1">DISPUTE #{selectedDispute.disputeId} · TRANSACTION #{selectedDispute.transactionId}</p>
+                        <h2 className="text-2xl font-bold text-gray-900">{selectedDispute.propertyTitle}</h2>
+                        <p className="text-sm text-gray-500 mt-1">{selectedDispute.listingAddress}</p>
+                      </div>
+                      <span className={`px-4 py-2 text-sm font-bold rounded-full border ${
+                        selectedDispute.status === 'Open'        ? 'bg-red-100 text-red-700 border-red-200' :
+                        selectedDispute.status === 'UnderReview' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
+                        selectedDispute.status === 'Resolved'    ? 'bg-green-100 text-green-700 border-green-200' :
+                                                                   'bg-blue-100 text-blue-700 border-blue-200'
+                      }`}>
+                        {selectedDispute.status.replace(/([A-Z])/g, ' $1').trim().toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Transaction Context */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Parties */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                      <h3 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+                        <Users size={18} className="text-blue-600" /> Transaction Parties
+                      </h3>
+                      <div className="space-y-3">
+                        {[
+                          { role: 'Buyer',   name: selectedDispute.buyerName },
+                          { role: 'Owner',   name: selectedDispute.ownerName },
+                          { role: 'Agent',   name: selectedDispute.agentName },
+                          { role: 'Submitted by', name: selectedDispute.submittedByFullName },
+                        ].map(({ role, name }) => (
+                          <div key={role} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                            <span className="text-sm text-gray-500 font-medium">{role}</span>
+                            <span className="text-sm font-bold text-gray-900">{name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Offer & Listing */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                      <h3 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+                        <DollarSign size={18} className="text-blue-600" /> Offer Summary
+                      </h3>
+                      <div className="space-y-3">
+                        {[
+                          { label: 'Asking Price',      value: formatPrice(selectedDispute.askingPrice) },
+                          { label: 'Accepted Offer',    value: formatPrice(selectedDispute.acceptedOfferPrice) },
+                          { label: 'Negotiation Rounds', value: `${selectedDispute.negotiationRounds} round${selectedDispute.negotiationRounds !== 1 ? 's' : ''}` },
+                          { label: 'Inspection Verdict', value: selectedDispute.inspectionVerdict
+                              ? selectedDispute.inspectionVerdict.replace(/([A-Z])/g, ' $1').trim()
+                              : 'No inspection' },
+                        ].map(({ label, value }) => (
+                          <div key={label} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                            <span className="text-sm text-gray-500 font-medium">{label}</span>
+                            <span className={`text-sm font-bold ${
+                              label === 'Inspection Verdict' && selectedDispute.inspectionVerdict === 'Failed'    ? 'text-red-600' :
+                              label === 'Inspection Verdict' && selectedDispute.inspectionVerdict === 'Passed'    ? 'text-green-600' :
+                              label === 'Inspection Verdict' && selectedDispute.inspectionVerdict?.includes('Conditions') ? 'text-yellow-600' :
+                              'text-gray-900'
+                            }`}>{value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dispute Description */}
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                    <h3 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+                      <MessageSquare size={18} className="text-blue-600" /> Dispute Description
+                    </h3>
+                    <p className="text-sm text-gray-700 leading-relaxed mb-4">{selectedDispute.description}</p>
+                    <p className="text-xs text-gray-500">
+                      Submitted by <strong>{selectedDispute.submittedByFullName}</strong> on {new Date(selectedDispute.submittedAt).toLocaleString()}
+                    </p>
+                  </div>
+
+                  {/* Resolution */}
+                  {selectedDispute.status === 'Resolved' ? (
+                    <div className="bg-green-50 rounded-2xl border-2 border-green-200 p-6">
+                      <h3 className="text-base font-bold text-green-900 mb-2 flex items-center gap-2">
+                        <CheckCircle size={18} /> Resolution Outcome
+                      </h3>
+                      <p className="text-sm text-green-800">{selectedDispute.resolutionOutcome}</p>
+                      {selectedDispute.resolvedAt && (
+                        <p className="text-xs text-green-700 mt-3">Resolved on {new Date(selectedDispute.resolvedAt).toLocaleString()}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                      <h3 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+                        <CheckCircle size={18} className="text-green-600" /> Resolve Dispute
+                      </h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Resolution Notes <span className="text-red-500">*</span></label>
+                          <textarea
+                            value={actionReason}
+                            onChange={(e) => setActionReason(e.target.value)}
+                            placeholder="Describe the resolution outcome and any actions taken…"
+                            rows={5}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+                          />
+                        </div>
+                        <button
+                          onClick={() => handleResolveDispute(selectedDispute)}
+                          disabled={!actionReason.trim() || disputeResolving}
+                          className="w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                        >
+                          <CheckCircle size={18} />
+                          {disputeResolving ? 'Resolving…' : 'Resolve Dispute'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
-                {[
-                  { status: 'Open',        label: 'Open',         bg: 'bg-red-50',    border: 'border-red-200',    tc: 'text-red-600',    icon: <AlertCircle className="text-red-600"    size={32} /> },
-                  { status: 'UnderReview', label: 'Under Review', bg: 'bg-yellow-50', border: 'border-yellow-200', tc: 'text-yellow-600', icon: <Search      className="text-yellow-600" size={32} /> },
-                  { status: 'Resolved',    label: 'Resolved',     bg: 'bg-green-50',  border: 'border-green-200',  tc: 'text-green-600',  icon: <CheckCircle className="text-green-600"  size={32} /> },
-                  { status: 'Escalated',   label: 'Escalated',    bg: 'bg-blue-50',   border: 'border-blue-200',   tc: 'text-blue-600',   icon: <XCircle     className="text-blue-600"   size={32} /> },
-                ].map(({ status, label, bg, border, tc, icon }) => (
-                  <div key={status} className={`${bg} rounded-xl p-6 border-2 ${border}`}>
-                    <div className="flex items-center justify-between mb-4">
-                      {icon}
-                      <span className={`text-3xl font-bold ${tc}`}>{disputes.filter(d => d.status === status).length}</span>
-                    </div>
-                    <p className={`text-sm font-semibold ${tc.replace('600', '900')}`}>{label}</p>
-                  </div>
-                ))}
-              </div>
             </div>
           )}
 
