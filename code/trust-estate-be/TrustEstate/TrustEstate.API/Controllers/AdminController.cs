@@ -43,4 +43,38 @@ public sealed class AdminController : ControllerBase
         await _admin.RejectVerificationAsync(userId, request.Notes, ct);
         return NoContent();
     }
+
+    [HttpGet("listings")]
+    [ProducesResponseType(typeof(IEnumerable<AdminListingDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAllListings([FromQuery] string? status, CancellationToken ct)
+    {
+        var result = await _admin.GetAllListingsAsync(status, ct);
+        return Ok(result);
+    }
+
+    [HttpPut("listings/{id:int}/suspend")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SuspendListing(int id, [FromBody] AdminListingActionRequest request, CancellationToken ct)
+    {
+        await _admin.SuspendListingAsync(id, request.Reason, ct);
+        return NoContent();
+    }
+
+    [HttpPut("listings/{id:int}/remove")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RemoveListing(int id, [FromBody] AdminListingActionRequest request, CancellationToken ct)
+    {
+        await _admin.RemoveListingAsync(id, request.Reason, ct);
+        return NoContent();
+    }
+
+    [HttpGet("users")]
+    [ProducesResponseType(typeof(IEnumerable<AdminUserDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAllUsers(CancellationToken ct)
+    {
+        var result = await _admin.GetAllUsersAsync(ct);
+        return Ok(result);
+    }
 }
