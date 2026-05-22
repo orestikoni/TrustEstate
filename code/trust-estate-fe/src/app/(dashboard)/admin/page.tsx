@@ -468,13 +468,13 @@ export default function AdminDashboardPage() {
     return disputes.filter(d => d.status === disputeFilter);
   };
 
-  const Sidebar = () => (
+  const sidebarContent = (
     <div className="h-full bg-gradient-to-br from-gray-700 via-gray-600 to-gray-700 flex flex-col shadow-2xl">
       {/* Logo */}
       <div className="p-6 border-b border-gray-500/30">
         <Link href="/" className="flex items-center gap-2.5">
           <div className="p-1.5 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/50">
-            <img src="/images/logo.png" alt="TrustEstate" className="w-10 h-10 object-contain"
+            <img src="/images/logo.svg" alt="TrustEstate" className="w-10 h-10 object-contain"
               onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')} />
           </div>
         </Link>
@@ -555,14 +555,14 @@ export default function AdminDashboardPage() {
                 <X size={24} />
               </button>
             </div>
-            <Sidebar />
+            {sidebarContent}
           </div>
         </div>
       )}
 
       {/* Desktop Sidebar */}
       <aside className="hidden lg:block w-80 flex-shrink-0">
-        <div className="fixed w-80 h-screen overflow-y-auto"><Sidebar /></div>
+        <div className="fixed w-80 h-screen overflow-y-auto">{sidebarContent}</div>
       </aside>
 
       {/* Main Content */}

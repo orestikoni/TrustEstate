@@ -3,9 +3,6 @@
 import { useState, useEffect } from 'react';
 import { Menu, X, Home } from 'lucide-react';
 
-// TODO:
-// Place your logo image at: public/images/logo.png
-
 const navLinks = [
   { label: 'Home', href: '/' },
   { label: 'Properties', href: '/search' },
@@ -39,7 +36,7 @@ export const Navbar = () => {
             <div className="p-1.5 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30">
               {/* Logo image — place at public/images/logo.png */}
               <img
-                src="/images/logo.png"
+                src="/images/logo.svg"
                 alt="TrustEstate"
                 className="w-8 h-8 object-contain"
                 onError={(e) => {

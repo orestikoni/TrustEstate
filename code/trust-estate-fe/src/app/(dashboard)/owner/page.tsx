@@ -500,13 +500,13 @@ export default function OwnerDashboardPage() {
   };
 
   // ── sidebar
-  const Sidebar = () => (
+  const sidebarContent = (
     <div className="h-full bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 flex flex-col shadow-2xl">
       <div className="p-6 border-b border-blue-500/30">
         <Link href="/" className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-white shadow-lg">
+          <div className="p-1.5 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/50">
             <img
-              src="/images/logo.png"
+              src="/images/logo.svg"
               alt="TrustEstate"
               className="w-10 h-10 object-contain"
               onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
@@ -615,7 +615,7 @@ export default function OwnerDashboardPage() {
                 <X size={24} className="text-white" />
               </button>
             </div>
-            <Sidebar />
+            {sidebarContent}
           </div>
         </div>
       )}
@@ -623,7 +623,7 @@ export default function OwnerDashboardPage() {
       {/* Desktop Sidebar */}
       <aside className="hidden lg:block w-80 flex-shrink-0">
         <div className="fixed w-80 h-screen overflow-y-auto">
-          <Sidebar />
+          {sidebarContent}
         </div>
       </aside>
 
