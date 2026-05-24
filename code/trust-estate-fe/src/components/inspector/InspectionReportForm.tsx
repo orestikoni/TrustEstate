@@ -69,13 +69,13 @@ export const InspectionReportForm: React.FC<InspectionReportFormProps> = ({
         Back to Inspection Details
       </button>
 
-      <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Inspection Report Submission</h2>
+      <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-4 sm:p-6 lg:p-8">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Inspection Report Submission</h2>
         <p className="text-gray-600 mb-6">{propertyTitle}</p>
 
         <div className="space-y-8">
           {CATEGORIES.map(({ key, label }) => (
-            <div key={key} className="p-6 bg-gray-50 rounded-xl border border-gray-200">
+            <div key={key} className="p-4 sm:p-6 bg-gray-50 rounded-xl border border-gray-200">
               <h3 className="text-lg font-bold text-gray-900 mb-4">{label}</h3>
 
               <div className="space-y-4">

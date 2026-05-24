@@ -1,5 +1,6 @@
 'use client';
 
+import styles from './buyer.module.css';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { notificationService, type ApiNotification, formatNotificationDate } from '@/services/notification.service';
@@ -632,9 +633,6 @@ export default function BuyerDashboardPage() {
       </nav>
 
       <div className="p-4 border-t border-blue-500/30 space-y-2">
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-white hover:bg-blue-500/30 transition-all">
-          <Settings size={20} /> Settings
-        </button>
         <button onClick={handleSignOut} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-red-300 hover:bg-red-500/10 transition-all">
           <LogOut size={20} /> Sign Out
         </button>
@@ -664,6 +662,40 @@ export default function BuyerDashboardPage() {
       </aside>
 
       <main className="flex-1 overflow-auto">
+
+        {/* ── Mobile top bar (all tabs except Browse which has its own search header) ── */}
+        {activeTab !== 'browse' && (
+          <header className="lg:hidden bg-white border-b border-gray-200 sticky top-0 z-30 shadow-sm">
+            <div className="px-4 py-3 flex items-center gap-3">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors -ml-1 shrink-0"
+              >
+                <Menu size={22} className="text-gray-700" />
+              </button>
+              <p className="font-bold text-gray-900 flex-1 truncate">
+                {(({
+                  dashboard: 'Dashboard',
+                  favorites: 'Saved Properties',
+                  offers: selectedOffer ? 'Offer Details' : 'My Offers',
+                  messages: 'Messages',
+                  notifications: 'Notifications',
+                  disputes: 'Disputes',
+                }) as Record<string, string>)[activeTab] ?? 'TrustEstate'}
+              </p>
+              {notifications.filter((n) => !n.isRead).length > 0 && activeTab !== 'notifications' && (
+                <button
+                  onClick={() => { setActiveTab('notifications'); setSelectedOffer(null); }}
+                  className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
+                >
+                  <Bell size={20} className="text-gray-700" />
+                  <span className={`absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ${styles.notificationDot}`} />
+                </button>
+              )}
+            </div>
+          </header>
+        )}
+
         {activeTab === 'browse' && (
         <header className="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-sm">
           <div className="px-4 sm:px-6 lg:px-8 py-4">
@@ -1134,22 +1166,22 @@ export default function BuyerDashboardPage() {
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between mb-2">
-                                <div>
-                                  <h3 className="text-xl font-bold text-gray-900 mb-1">{offer.propertyTitle}</h3>
-                                  <div className="flex items-center gap-2 text-gray-600 text-sm">
+                              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-2 gap-2">
+                                <div className="min-w-0">
+                                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-1 truncate">{offer.propertyTitle}</h3>
+                                  <div className="flex flex-wrap items-center gap-2 text-gray-600 text-sm">
                                     <Calendar size={16} />
                                     <span>Submitted {offer.submittedDate}</span>
                                     <span className="text-gray-400">· Round {offer.negotiationRound}</span>
                                   </div>
                                 </div>
-                                <span className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl border ${sc.color}`}>
-                                  <Icon size={16} />{sc.label}
+                                <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-bold rounded-xl border self-start sm:self-auto flex-shrink-0 ${sc.color}`}>
+                                  <Icon size={14} />{sc.label}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className="text-gray-600 font-medium">Offer:</span>
-                                <span className="text-2xl font-bold text-blue-600">{formatPrice(offer.offerAmount)}</span>
+                                <span className="text-xl sm:text-2xl font-bold text-blue-600">{formatPrice(offer.offerAmount)}</span>
                               </div>
                               {offer.responseDeadline && offer.status === 'countered' && (
                                 <p className="text-sm text-orange-600 font-semibold mt-1">
@@ -1210,17 +1242,17 @@ export default function BuyerDashboardPage() {
                 <ChevronRight size={20} className="rotate-180" /> Back to All Offers
               </button>
 
-              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-4 sm:p-6 lg:p-8">
                 <div className="mb-6 pb-6 border-b border-gray-200">
-                  <div className="flex gap-6 mb-4">
+                  <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 mb-4">
                     {selectedOffer.propertyImage && (
-                      <div className="w-32 h-32 flex-shrink-0 rounded-xl overflow-hidden">
+                      <div className="w-full h-52 sm:w-32 sm:h-32 flex-shrink-0 rounded-xl overflow-hidden">
                         <img src={selectedOffer.propertyImage} alt={selectedOffer.propertyTitle} className="w-full h-full object-cover"
                           onError={(e) => ((e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg')} />
                       </div>
                     )}
-                    <div className="flex-1">
-                      <h2 className="text-2xl font-bold text-gray-900 mb-2">{selectedOffer.propertyTitle}</h2>
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">{selectedOffer.propertyTitle}</h2>
                       <div className="flex items-center gap-3 flex-wrap">
                         <span className="text-sm text-gray-600">Current Offer:</span>
                         <span className="text-3xl font-bold text-blue-600">{formatPrice(selectedOffer.offerAmount)}</span>
@@ -1435,7 +1467,7 @@ export default function BuyerDashboardPage() {
           {/* ── Disputes Tab ── */}
           {activeTab === 'disputes' && (
             <div className="max-w-4xl mx-auto space-y-6">
-              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-4 sm:p-6 lg:p-8">
                 <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                   <Shield size={20} className="text-blue-600" />
                   Submit a Dispute
@@ -1504,7 +1536,7 @@ export default function BuyerDashboardPage() {
                 })()}
               </div>
 
-              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-4 sm:p-6 lg:p-8">
                 <h2 className="text-xl font-bold text-gray-900 mb-6">My Disputes</h2>
                 {disputesLoading ? (
                   <div className="flex justify-center py-8">
@@ -1550,17 +1582,18 @@ export default function BuyerDashboardPage() {
           )}
 
           {/* ── Messages Tab ── */}
+          {/* Mobile: single column toggled by activeThread; Desktop: fixed-height two-column */}
           {activeTab === 'messages' && (
-            <div className="flex gap-6 h-[calc(100vh-180px)]">
+            <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 lg:h-[calc(100dvh-180px)]">
 
-              {/* Thread list */}
-              <div className="w-80 flex-shrink-0 bg-white rounded-2xl shadow-lg border border-gray-200 flex flex-col overflow-hidden">
-                <div className="p-4 border-b border-gray-200">
+              {/* Thread list — full width on mobile when no thread selected, sidebar on desktop */}
+              <div className={`${activeThread ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-80 lg:flex-shrink-0 bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden`}>
+                <div className="p-4 border-b border-gray-200 flex-shrink-0">
                   <h2 className="font-bold text-gray-900 flex items-center gap-2">
                     <MessageSquare size={18} className="text-blue-600" /> Conversations
                   </h2>
                 </div>
-                <div className="flex-1 overflow-y-auto">
+                <div className={`flex-1 overflow-y-auto max-h-[60vh] lg:max-h-none ${styles.scrollableArea}`}>
                   {threadsLoading ? (
                     <div className="flex justify-center py-10">
                       <Loader2 className="animate-spin text-blue-600" size={28} />
@@ -1611,8 +1644,8 @@ export default function BuyerDashboardPage() {
                 </div>
               </div>
 
-              {/* Message pane */}
-              <div className="flex-1 bg-white rounded-2xl shadow-lg border border-gray-200 flex flex-col overflow-hidden">
+              {/* Message pane — full width on mobile when thread selected, flex-1 on desktop */}
+              <div className={`${!activeThread ? 'hidden lg:flex' : 'flex'} flex-1 flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden min-h-[400px] lg:min-h-0`}>
                 {!activeThread ? (
                   <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
                     <MessageSquare className="text-gray-300 mb-4" size={56} />
@@ -1623,8 +1656,16 @@ export default function BuyerDashboardPage() {
                   </div>
                 ) : (
                   <>
+                    {/* Mobile: back to thread list */}
+                    <button
+                      onClick={() => setActiveThread(null)}
+                      className="lg:hidden flex items-center gap-2 px-4 py-3 border-b border-gray-200 text-blue-600 hover:bg-blue-50 transition-colors font-semibold text-sm flex-shrink-0"
+                    >
+                      <ChevronRight size={16} className="rotate-180" /> All Conversations
+                    </button>
+
                     {/* Thread header */}
-                    <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+                    <div className="px-4 sm:px-6 py-4 border-b border-gray-200 bg-gray-50 flex-shrink-0">
                       <p className="font-bold text-gray-900">
                         {currentUser?.userId === activeThread.participantOneId
                           ? activeThread.participantTwoFullName
@@ -1636,7 +1677,7 @@ export default function BuyerDashboardPage() {
                     </div>
 
                     {/* Messages */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
+                    <div className={`flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-gray-50 ${styles.scrollableArea}`}>
                       {threadMessagesLoading ? (
                         <div className="flex justify-center py-8">
                           <Loader2 className="animate-spin text-blue-600" size={28} />

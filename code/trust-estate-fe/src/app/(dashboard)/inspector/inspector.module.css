@@ -1,0 +1,23 @@
+/* Inspector Dashboard – Responsive Enhancements*/
+
+.scrollableArea {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+
+.scrollableArea::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scrollableArea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollableArea::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 2px;
+}
+
+.scrollableArea::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
+}

@@ -1,0 +1,41 @@
+
+/* Thin, aesthetic scrollbars for thread list and message area */
+.scrollableArea {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+
+.scrollableArea::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scrollableArea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollableArea::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 2px;
+}
+
+.scrollableArea::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
+}
+
+/* Subtle pulse for unread notification dot in mobile header */
+.notificationDot {
+  animation: dotPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes dotPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.7; transform: scale(0.85); }
+}
+
+/* On very small viewports (<380 px) keep the browse search pill readable */
+@media (max-width: 380px) {
+  .searchPill input,
+  .searchPill select {
+    font-size: 13px;
+  }
+}

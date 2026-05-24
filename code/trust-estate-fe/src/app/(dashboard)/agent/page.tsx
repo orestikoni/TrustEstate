@@ -40,6 +40,7 @@ import { inspectionService, type InspectorDto, type InspectionDto } from '@/serv
 import { transactionService, type TransactionStatusDto } from '@/services/transaction.service';
 import { ApiRequestError } from '@/lib/api-client';
 import type { OfferDto } from '@/types';
+import styles from './agent.module.css';
 
 type ListingStatus = 'pending_review' | 'corrections_requested' | 'active' | 'under_offer' | 'closed';
 type OfferStatus = 'pending' | 'countered' | 'accepted' | 'declined';
@@ -574,9 +575,6 @@ export default function AgentDashboardPage() {
 
       {/* Bottom */}
       <div className="p-4 border-t border-blue-500/30 space-y-2">
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-white hover:bg-blue-500/30 transition-all">
-          <Settings size={20} /> Settings
-        </button>
         <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-red-300 hover:bg-red-500/10 transition-all">
           <LogOut size={20} /> Sign Out
         </button>
@@ -655,11 +653,11 @@ export default function AgentDashboardPage() {
         <header className="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-sm">
           <div className="px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex items-center gap-4">
-              <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0">
                 <Menu size={24} className="text-gray-700" />
               </button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-base sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">
                   {activeTab === 'dashboard'    && 'Agent Dashboard'}
                   {activeTab === 'assignments'  && 'Assignment Requests'}
                   {activeTab === 'listings'     && (selectedListing ? `Review — ${selectedListing.title}` : 'Listing Review')}
@@ -668,7 +666,7 @@ export default function AgentDashboardPage() {
                   {activeTab === 'messages'     && 'Messages'}
                   {activeTab === 'notifications'&& 'Notifications'}
                 </h1>
-                <p className="text-sm text-gray-600 mt-0.5">
+                <p className="text-sm text-gray-600 mt-0.5 hidden sm:block">
                   {activeTab === 'dashboard'   && 'Overview of your assigned listings and activity'}
                   {activeTab === 'assignments' && 'Accept or decline listing assignments'}
                   {activeTab === 'listings'    && !selectedListing && 'Review and approve property listings'}
@@ -679,7 +677,7 @@ export default function AgentDashboardPage() {
           </div>
         </header>
 
-        <div className="px-4 sm:px-6 lg:px-8 py-8">
+        <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
 
           {/* ── Dashboard Tab ── */}
           {activeTab === 'dashboard' && (
@@ -829,7 +827,7 @@ export default function AgentDashboardPage() {
 
           {/* ── Assignments Tab ── */}
           {activeTab === 'assignments' && (
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-4 sm:p-6">
               {offersLoading ? (
                 <div className="flex justify-center py-16"><Loader2 className="animate-spin text-blue-600" size={40} /></div>
               ) : (
@@ -839,9 +837,9 @@ export default function AgentDashboardPage() {
                   </p>
                   <div className="space-y-6">
                     {pendingAssignments.map((assignment) => (
-                      <div key={assignment.id} className="p-6 bg-gray-50 rounded-2xl border border-gray-200">
-                        <div className="flex gap-6 mb-4">
-                          <div className="w-32 h-32 flex-shrink-0 rounded-xl overflow-hidden">
+                      <div key={assignment.id} className="p-4 sm:p-6 bg-gray-50 rounded-2xl border border-gray-200">
+                        <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 mb-4">
+                          <div className="w-full h-48 sm:w-32 sm:h-32 flex-shrink-0 rounded-xl overflow-hidden">
                             <img
                               src={assignment.photos[0]?.photoUrl ?? '/images/property-placeholder.jpg'}
                               alt={assignment.title}
@@ -850,9 +848,9 @@ export default function AgentDashboardPage() {
                             />
                           </div>
                           <div className="flex-1">
-                            <h3 className="text-xl font-bold text-gray-900 mb-2">{assignment.title}</h3>
+                            <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">{assignment.title}</h3>
                             <p className="text-gray-600 mb-3 line-clamp-2">{assignment.description}</p>
-                            <div className="grid grid-cols-2 gap-4 mb-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 mb-3">
                               <div className="flex items-center gap-2 text-gray-600">
                                 <MapPin size={16} /><span className="text-sm">{assignment.location}</span>
                               </div>
@@ -864,14 +862,14 @@ export default function AgentDashboardPage() {
                             <div className="flex items-center gap-4">
                               <span className="text-sm text-gray-600">{assignment.propertyType} — {assignment.listingType}</span>
                               <div className="ml-auto">
-                                <p className="text-2xl font-bold text-blue-600">{formatPrice(assignment.price)}</p>
+                                <p className="text-xl sm:text-2xl font-bold text-blue-600">{formatPrice(assignment.price)}</p>
                               </div>
                             </div>
                           </div>
                         </div>
                         <div className="pt-4 border-t border-gray-200">
                           <p className="text-sm text-gray-600 mb-4">Requested on: {assignment.assignedDate}</p>
-                          <div className="flex gap-3">
+                          <div className="flex flex-col sm:flex-row gap-3">
                             <button
                               onClick={() => handleAcceptAssignment(assignment)}
                               disabled={actionLoading}
@@ -906,7 +904,7 @@ export default function AgentDashboardPage() {
 
           {/* ── Listing Review List ── */}
           {activeTab === 'listings' && !selectedListing && (
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-4 sm:p-6">
               {offersLoading ? (
                 <div className="flex justify-center py-16"><Loader2 className="animate-spin text-blue-600" size={40} /></div>
               ) : (
@@ -970,7 +968,7 @@ export default function AgentDashboardPage() {
               <button onClick={() => setSelectedListing(null)} className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold mb-4">
                 <ChevronRight size={20} className="rotate-180" /> Back to All Listings
               </button>
-              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-4 sm:p-6 lg:p-8">
                 {/* Photos */}
                 {selectedListing.photos.length > 0 && (
                   <div className="mb-6 grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -984,17 +982,17 @@ export default function AgentDashboardPage() {
                 )}
 
                 <div className="mb-6 pb-6 border-b border-gray-200">
-                  <div className="flex items-start justify-between mb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4 gap-3">
                     <div>
-                      <h2 className="text-2xl font-bold text-gray-900 mb-2">{selectedListing.title}</h2>
+                      <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">{selectedListing.title}</h2>
                       <p className="text-gray-600 mb-3">{selectedListing.description}</p>
                       <div className="flex items-center gap-3">
                         <span className="text-sm text-gray-600">Owner:</span>
                         <span className="text-sm font-semibold text-gray-900">{selectedListing.ownerName}</span>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-3xl font-bold text-blue-600 mb-2">{formatPrice(selectedListing.price)}</p>
+                    <div className="sm:text-right">
+                      <p className="text-2xl sm:text-3xl font-bold text-blue-600 mb-2">{formatPrice(selectedListing.price)}</p>
                       {(() => {
                         const sc = getListingStatusConfig(selectedListing.listingStatus);
                         const Icon = sc.icon;
@@ -1034,7 +1032,7 @@ export default function AgentDashboardPage() {
                       />
                       <p className="text-xs text-gray-500 mt-1 text-right">{correctionNote.length}/1000</p>
                     </div>
-                    <div className="flex gap-4">
+                    <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                       <button
                         onClick={() => handleApproveListing(selectedListing)}
                         disabled={actionLoading}
@@ -1081,25 +1079,25 @@ export default function AgentDashboardPage() {
               )}
               <div className="space-y-4">
                 {offers.map((offer) => (
-                  <div key={offer.id} className="p-6 bg-gray-50 rounded-2xl border border-gray-200 hover:shadow-md transition-all">
-                    <div className="flex gap-4 mb-4">
-                      <div className="w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden">
+                  <div key={offer.id} className="p-4 sm:p-6 bg-gray-50 rounded-2xl border border-gray-200 hover:shadow-md transition-all">
+                    <div className="flex flex-col sm:flex-row gap-4 mb-4">
+                      <div className="w-full h-36 sm:w-24 sm:h-24 flex-shrink-0 rounded-lg overflow-hidden">
                         <img src={offer.listingImage} alt={offer.listingTitle} className="w-full h-full object-cover"
                           onError={(e) => ((e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg')} />
                       </div>
                       <div className="flex-1">
-                        <div className="flex items-start justify-between mb-2">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-2 gap-2">
                           <div>
-                            <h3 className="text-xl font-bold text-gray-900 mb-1">{offer.listingTitle}</h3>
+                            <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-1">{offer.listingTitle}</h3>
                             <p className="text-sm text-gray-600">From: {offer.buyerName}</p>
                           </div>
-                          <span className={`px-4 py-2 text-sm font-bold rounded-xl border ${getOfferStatusColor(offer.status)}`}>
+                          <span className={`self-start flex-shrink-0 px-4 py-2 text-sm font-bold rounded-xl border ${getOfferStatusColor(offer.status)}`}>
                             {offer.status.toUpperCase()}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 mb-2">
                           <span className="text-gray-600">Offer Amount:</span>
-                          <span className="text-2xl font-bold text-blue-600">{formatPrice(offer.proposedPrice)}</span>
+                          <span className="text-xl sm:text-2xl font-bold text-blue-600">{formatPrice(offer.proposedPrice)}</span>
                         </div>
                         <p className="text-sm text-gray-600">Round {offer.currentRound} of {offer.maxRounds}</p>
                       </div>
@@ -1119,19 +1117,19 @@ export default function AgentDashboardPage() {
               <button onClick={() => setSelectedOffer(null)} className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold mb-4">
                 <ChevronRight size={20} className="rotate-180" /> Back to All Offers
               </button>
-              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-4 sm:p-6 lg:p-8">
                 <div className="mb-6 pb-6 border-b border-gray-200">
-                  <div className="flex gap-6 mb-4">
-                    <div className="w-32 h-32 flex-shrink-0 rounded-xl overflow-hidden">
+                  <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 mb-4">
+                    <div className="w-full h-48 sm:w-32 sm:h-32 flex-shrink-0 rounded-xl overflow-hidden">
                       <img src={selectedOffer.listingImage} alt={selectedOffer.listingTitle} className="w-full h-full object-cover"
                         onError={(e) => ((e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg')} />
                     </div>
                     <div className="flex-1">
-                      <h2 className="text-2xl font-bold text-gray-900 mb-2">{selectedOffer.listingTitle}</h2>
+                      <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">{selectedOffer.listingTitle}</h2>
                       <p className="text-gray-600 mb-3">Buyer: {selectedOffer.buyerName}</p>
                       <div className="flex items-center gap-3 flex-wrap">
                         <span className="text-sm text-gray-600">Current Offer:</span>
-                        <span className="text-3xl font-bold text-blue-600">{formatPrice(selectedOffer.proposedPrice)}</span>
+                        <span className="text-2xl sm:text-3xl font-bold text-blue-600">{formatPrice(selectedOffer.proposedPrice)}</span>
                         <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${getOfferStatusColor(selectedOffer.status)}`}>
                           {selectedOffer.status.toUpperCase()}
                         </span>
@@ -1398,9 +1396,9 @@ export default function AgentDashboardPage() {
           {/* ── Messages Tab ── */}
           {activeTab === 'messages' && (
             <div className="max-w-6xl mx-auto">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 lg:gap-6">
                 {/* Thread List */}
-                <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-4">
+                <div className={`${activeThread ? 'hidden lg:block' : 'block'} bg-white rounded-2xl shadow-lg border border-gray-200 p-4`}>
                   <h2 className="text-lg font-bold text-gray-900 mb-4">Conversations</h2>
                   {threadsLoading ? (
                     <div className="flex justify-center py-8"><Loader2 className="animate-spin text-blue-600" size={28} /></div>
@@ -1440,13 +1438,16 @@ export default function AgentDashboardPage() {
                 </div>
 
                 {/* Chat Area */}
-                <div className="lg:col-span-2">
-                  <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-200px)]">
+                <div className={`${!activeThread ? 'hidden lg:block' : 'block'} lg:col-span-2`}>
+                  <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden flex flex-col min-h-[400px] lg:h-[calc(100dvh-200px)]">
                     {activeThread ? (
                       <>
-                        <div className="p-5 border-b border-gray-200 bg-gray-50">
+                        <div className="px-4 sm:px-5 py-4 border-b border-gray-200 bg-gray-50">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
+                            <button onClick={() => setActiveThread(null)} className="lg:hidden mr-1 p-1.5 hover:bg-gray-200 rounded-lg transition-colors text-gray-600 flex-shrink-0">
+                              <ChevronRight size={20} className="rotate-180" />
+                            </button>
+                            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
                               {(user?.userId === activeThread.participantOneId
                                 ? activeThread.participantTwoFullName
                                 : activeThread.participantOneFullName).charAt(0)}
@@ -1462,7 +1463,7 @@ export default function AgentDashboardPage() {
                           </div>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
+                        <div className={`flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-gray-50 ${styles.scrollableArea}`}>
                           {threadMessagesLoading ? (
                             <div className="flex justify-center py-8"><Loader2 className="animate-spin text-blue-600" size={28} /></div>
                           ) : threadMessages.length === 0 ? (

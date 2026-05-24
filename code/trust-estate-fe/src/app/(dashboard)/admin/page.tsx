@@ -60,6 +60,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { ListingCard } from '@/components/admin/ListingCard';
+import styles from './admin.module.css';
 
 
 
@@ -534,9 +535,6 @@ export default function AdminDashboardPage() {
 
       {/* Bottom */}
       <div className="p-4 border-t border-gray-500/30 space-y-2">
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-gray-200 hover:bg-gray-500/30 transition-all">
-          <Settings size={20} /> Settings
-        </button>
         <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-red-400 hover:bg-red-500/20 transition-all">
           <LogOut size={20} /> Sign Out
         </button>
@@ -571,11 +569,11 @@ export default function AdminDashboardPage() {
         <header className="bg-gradient-to-br from-gray-700 via-gray-600 to-gray-700 border-b border-gray-500/30 sticky top-0 z-30">
           <div className="px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 hover:bg-gray-500/30 rounded-lg transition-colors text-white">
+              <div className="flex items-center gap-4 min-w-0 flex-1">
+                <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 hover:bg-gray-500/30 rounded-lg transition-colors text-white flex-shrink-0">
                   <Menu size={24} />
                 </button>
-                <h1 className="text-2xl font-bold text-white">
+                <h1 className="text-base sm:text-xl lg:text-2xl font-bold text-white truncate">
                   {activeTab === 'dashboard'     && 'Platform Analytics'}
                   {activeTab === 'verifications' && 'Pending Verifications'}
                   {activeTab === 'listings'      && 'Listings Management'}
@@ -585,16 +583,11 @@ export default function AdminDashboardPage() {
                   {activeTab === 'notifications' && 'Notifications'}
                 </h1>
               </div>
-              <div className="relative hidden sm:block">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
-                <input type="text" placeholder="Search..."
-                  className="pl-10 pr-4 py-2 bg-gray-600/50 border-2 border-gray-500/30 text-white placeholder-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-              </div>
             </div>
           </div>
         </header>
 
-        <div className="px-4 sm:px-6 lg:px-8 py-8">
+        <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
 
           {/* ── Analytics Tab ── */}
           {activeTab === 'dashboard' && (
@@ -697,7 +690,7 @@ export default function AdminDashboardPage() {
                   <div key={stat.label} className={`bg-gradient-to-br ${stat.gradient} rounded-2xl p-6 text-white`}>
                     {stat.icon}
                     <p className="text-sm font-semibold text-white/90 mb-2">{stat.label}</p>
-                    <p className="text-4xl font-bold mb-1">{stat.value}</p>
+                    <p className="text-2xl sm:text-4xl font-bold mb-1 truncate">{stat.value}</p>
                     <p className="text-sm text-white/80">{stat.sub}</p>
                   </div>
                 ))}
@@ -707,7 +700,7 @@ export default function AdminDashboardPage() {
 
           {/* ── Verifications Tab ── */}
           {activeTab === 'verifications' && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6">
               {verificationsLoading && (
                 <p className="text-gray-500 text-sm mb-4">Loading pending verifications…</p>
               )}
@@ -730,7 +723,7 @@ export default function AdminDashboardPage() {
                     ? 'bg-purple-100 text-purple-700 border-purple-200'
                     : 'bg-amber-100 text-amber-700 border-amber-200';
                   return (
-                    <div key={v.userId} className="p-6 bg-gray-50 rounded-xl border-2 border-gray-200 hover:shadow-md transition-all">
+                    <div key={v.userId} className="p-4 sm:p-6 bg-gray-50 rounded-xl border-2 border-gray-200 hover:shadow-md transition-all">
                       <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-3">
@@ -751,18 +744,18 @@ export default function AdminDashboardPage() {
                             )}
                           </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col sm:flex-row gap-2">
                           <button
                             onClick={() => handleApprove(v.userId)}
                             disabled={isActioning}
-                            className="px-6 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex-1 sm:flex-none px-6 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <CheckCircle size={18} /> Approve
                           </button>
                           <button
                             onClick={() => handleReject(v.userId)}
                             disabled={isActioning}
-                            className="px-6 py-2.5 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex-1 sm:flex-none px-6 py-2.5 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <XCircle size={18} /> Reject
                           </button>
@@ -1006,12 +999,12 @@ export default function AdminDashboardPage() {
                       ? 'bg-red-100 text-red-700 border-red-200'
                       : 'bg-gray-100 text-gray-700 border-gray-200';
                     return (
-                      <div key={insp.inspectionId} className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:shadow-lg transition-all">
+                      <div key={insp.inspectionId} className="bg-white rounded-xl border-2 border-gray-200 p-4 sm:p-6 hover:shadow-lg transition-all">
                         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
                           <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-3">
-                              <ClipboardCheck className="text-blue-600" size={24} />
-                              <h3 className="text-xl font-bold text-gray-900">{insp.propertyTitle}</h3>
+                            <div className="flex items-center gap-3 mb-3 flex-wrap">
+                              <ClipboardCheck className="text-blue-600 flex-shrink-0" size={24} />
+                              <h3 className="text-lg sm:text-xl font-bold text-gray-900">{insp.propertyTitle}</h3>
                               {insp.finalVerdict && (
                                 <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${verdictColor}`}>
                                   {insp.finalVerdict.replace(/([A-Z])/g, ' $1').trim().toUpperCase()}
@@ -1113,7 +1106,7 @@ export default function AdminDashboardPage() {
                           dispute.status === 'Resolved'    ? 'bg-green-100 text-green-700 border-green-200' :
                                                              'bg-blue-100 text-blue-700 border-blue-200';
                         return (
-                          <div key={dispute.disputeId} className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:shadow-lg transition-all">
+                          <div key={dispute.disputeId} className="bg-white rounded-xl border-2 border-gray-200 p-4 sm:p-6 hover:shadow-lg transition-all">
                             <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
                               <div className="flex-1">
                                 <div className="flex items-center gap-3 mb-3 flex-wrap">
@@ -1179,11 +1172,11 @@ export default function AdminDashboardPage() {
                   </button>
 
                   {/* Header */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6">
                     <div className="flex items-start justify-between gap-4 flex-wrap">
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <p className="text-xs text-gray-500 font-semibold mb-1">DISPUTE #{selectedDispute.disputeId} · TRANSACTION #{selectedDispute.transactionId}</p>
-                        <h2 className="text-2xl font-bold text-gray-900">{selectedDispute.propertyTitle}</h2>
+                        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">{selectedDispute.propertyTitle}</h2>
                         <p className="text-sm text-gray-500 mt-1">{selectedDispute.listingAddress}</p>
                       </div>
                       <span className={`px-4 py-2 text-sm font-bold rounded-full border ${
@@ -1200,7 +1193,7 @@ export default function AdminDashboardPage() {
                   {/* Transaction Context */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Parties */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6">
                       <h3 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
                         <Users size={18} className="text-blue-600" /> Transaction Parties
                       </h3>
@@ -1220,7 +1213,7 @@ export default function AdminDashboardPage() {
                     </div>
 
                     {/* Offer & Listing */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6">
                       <h3 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
                         <DollarSign size={18} className="text-blue-600" /> Offer Summary
                       </h3>
@@ -1248,7 +1241,7 @@ export default function AdminDashboardPage() {
                   </div>
 
                   {/* Dispute Description */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6">
                     <h3 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
                       <MessageSquare size={18} className="text-blue-600" /> Dispute Description
                     </h3>
@@ -1260,7 +1253,7 @@ export default function AdminDashboardPage() {
 
                   {/* Resolution */}
                   {selectedDispute.status === 'Resolved' ? (
-                    <div className="bg-green-50 rounded-2xl border-2 border-green-200 p-6">
+                    <div className="bg-green-50 rounded-2xl border-2 border-green-200 p-4 sm:p-6">
                       <h3 className="text-base font-bold text-green-900 mb-2 flex items-center gap-2">
                         <CheckCircle size={18} /> Resolution Outcome
                       </h3>
@@ -1270,7 +1263,7 @@ export default function AdminDashboardPage() {
                       )}
                     </div>
                   ) : (
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6">
                       <h3 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
                         <CheckCircle size={18} className="text-green-600" /> Resolve Dispute
                       </h3>
@@ -1303,14 +1296,14 @@ export default function AdminDashboardPage() {
 
           {/* ── Notifications Tab ── */}
           {activeTab === 'notifications' && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6">
               <div className="flex items-center justify-between mb-6">
                 <p className="text-gray-600">{notifications.filter(n => !n.isRead).length} unread notification{notifications.filter(n => !n.isRead).length !== 1 ? 's' : ''}</p>
                 <button onClick={handleMarkAllAsRead} className="text-blue-600 hover:text-blue-700 font-semibold text-sm transition-colors">Mark all as read</button>
               </div>
-              <div className="space-y-3">
+              <div className={`space-y-3 max-h-[70vh] overflow-y-auto ${styles.scrollableArea}`}>
                 {notifications.map((n) => (
-                  <div key={n.notificationId} onClick={() => handleMarkAsRead(n.notificationId)} className={`p-5 rounded-xl border-2 transition-all cursor-pointer ${!n.isRead ? 'bg-blue-50 border-blue-200 hover:shadow-md' : 'bg-gray-50 border-gray-200 hover:shadow-sm'}`}>
+                  <div key={n.notificationId} onClick={() => handleMarkAsRead(n.notificationId)} className={`p-4 sm:p-5 rounded-xl border-2 transition-all cursor-pointer ${!n.isRead ? 'bg-blue-50 border-blue-200 hover:shadow-md' : 'bg-gray-50 border-gray-200 hover:shadow-sm'}`}>
                     <div className="flex items-start gap-4">
                       <div className={`p-2 rounded-lg ${n.type === 'AccountDecision' ? 'bg-blue-100' : n.type === 'DisputeUpdate' ? 'bg-red-100' : n.type === 'ListingStatus' ? 'bg-orange-100' : n.type === 'InspectionUpdate' ? 'bg-purple-100' : n.type === 'MessageReceived' ? 'bg-gray-100' : 'bg-blue-100'}`}>
                         {n.type === 'AccountDecision'   && <UserCheck      className="text-blue-600"   size={20} />}

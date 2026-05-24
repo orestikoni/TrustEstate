@@ -34,6 +34,7 @@ import { useRef } from 'react';
 import { InspectionCard } from '@/components/inspector/InspectionCard';
 import { InspectionReportForm } from '@/components/inspector/InspectionReportForm';
 import { FinalVerdictForm } from '@/components/inspector/FinalVerdictForm';
+import styles from './inspector.module.css';
 
 type InspectionStatus = 'scheduled' | 'in_progress' | 'completed' | 'report_submitted';
 type Severity = 'minor' | 'moderate' | 'critical';
@@ -374,9 +375,6 @@ export default function InspectorDashboardPage() {
 
       {/* Bottom */}
       <div className="p-4 border-t border-blue-500/30 space-y-2">
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-white hover:bg-blue-500/30 transition-all">
-          <Settings size={20} /> Settings
-        </button>
         <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-red-300 hover:bg-red-500/10 transition-all">
           <LogOut size={20} /> Sign Out
         </button>
@@ -459,17 +457,17 @@ export default function InspectorDashboardPage() {
         <header className="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-sm">
           <div className="px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex items-center gap-4">
-              <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0">
                 <Menu size={24} className="text-gray-700" />
               </button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-base sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">
                   {activeTab === 'dashboard'     && 'Inspector Dashboard'}
                   {activeTab === 'inspections'   && (selectedInspection ? `Inspection — ${selectedInspection.propertyTitle}` : 'Assigned Inspections')}
                   {activeTab === 'history'       && 'Inspection History'}
                   {activeTab === 'notifications' && 'Notifications'}
                 </h1>
-                <p className="text-sm text-gray-600 mt-0.5">
+                <p className="text-sm text-gray-600 mt-0.5 hidden sm:block">
                   {activeTab === 'dashboard'   && 'Overview of your inspection assignments'}
                   {activeTab === 'inspections' && !selectedInspection && 'View and manage your assigned inspections'}
                   {activeTab === 'history'     && 'View all completed inspection reports'}
@@ -479,7 +477,7 @@ export default function InspectorDashboardPage() {
           </div>
         </header>
 
-        <div className="px-4 sm:px-6 lg:px-8 py-8">
+        <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
 
           {/* ── Dashboard Tab ── */}
           {activeTab === 'dashboard' && (
@@ -563,7 +561,7 @@ export default function InspectorDashboardPage() {
                     </h2>
                     <button onClick={() => setActiveTab('notifications')} className="text-sm text-blue-600 hover:text-blue-700 font-semibold">View All</button>
                   </div>
-                  <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                  <div className={`space-y-3 max-h-[600px] overflow-y-auto ${styles.scrollableArea}`}>
                     {notifications.slice(0, 5).map((n) => (
                       <div key={n.notificationId} onClick={() => handleMarkAsRead(n.notificationId)} className={`p-3 rounded-xl border cursor-pointer ${n.isRead ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
                         <div className="flex items-start gap-3">
@@ -593,7 +591,7 @@ export default function InspectorDashboardPage() {
 
           {/* ── Assigned Inspections List ── */}
           {activeTab === 'inspections' && !selectedInspection && !showReportForm && !showVerdictForm && (
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-4 sm:p-6">
               {inspectionsLoading ? (
                 <div className="flex justify-center py-16"><Clock className="animate-spin text-blue-600" size={36} /></div>
               ) : inspectionsError ? (
@@ -640,31 +638,31 @@ export default function InspectorDashboardPage() {
                 <ChevronRight size={20} className="rotate-180" /> Back to All Inspections
               </button>
 
-              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-4 sm:p-6 lg:p-8">
                 <div className="mb-6 pb-6 border-b border-gray-200">
-                  <div className="flex items-start justify-between mb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4 gap-3">
                     <div>
-                      <h2 className="text-2xl font-bold text-gray-900 mb-2">{selectedInspection.propertyTitle}</h2>
+                      <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">{selectedInspection.propertyTitle}</h2>
                       <p className="text-gray-600 mb-3">{selectedInspection.propertyAddress}</p>
                     </div>
                     {(() => {
                       const sc = getStatusConfig(selectedInspection.status);
                       const Icon = sc.icon;
                       return (
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-full border ${sc.color}`}>
+                        <span className={`self-start inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-full border ${sc.color}`}>
                           <Icon size={14} />{sc.label}
                         </span>
                       );
                     })()}
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="flex items-center gap-2 text-gray-700"><Calendar size={18} className="text-blue-600" /><span className="text-sm font-semibold">Scheduled: {selectedInspection.scheduledDate} at {selectedInspection.scheduledTime}</span></div>
                     <div className="flex items-center gap-2 text-gray-700"><User size={18} className="text-blue-600" /><span className="text-sm font-semibold">Owner: {selectedInspection.ownerName}</span></div>
                   </div>
                 </div>
 
                 {/* Agent Contact */}
-                <div className="mb-6 p-6 bg-blue-50 border border-blue-200 rounded-xl">
+                <div className="mb-6 p-4 sm:p-6 bg-blue-50 border border-blue-200 rounded-xl">
                   <h3 className="text-lg font-bold text-blue-900 mb-4">Agent Contact Information</h3>
                   <div className="space-y-2">
                     <div className="flex items-center gap-3"><User className="text-blue-600" size={18} /><span className="text-sm font-semibold text-gray-900">{selectedInspection.agentName}</span></div>
@@ -673,7 +671,7 @@ export default function InspectorDashboardPage() {
                 </div>
 
                 {/* Workflow Guide */}
-                <div className="mb-6 p-6 bg-gray-50 border border-gray-200 rounded-xl">
+                <div className="mb-6 p-4 sm:p-6 bg-gray-50 border border-gray-200 rounded-xl">
                   <h3 className="text-lg font-bold text-gray-900 mb-4">Inspection Workflow</h3>
                   <div className="flex items-center gap-2 flex-wrap">
                     {[
@@ -830,7 +828,7 @@ export default function InspectorDashboardPage() {
 
           {/* ── History Tab ── */}
           {activeTab === 'history' && (
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-4 sm:p-6">
               {inspectionsLoading ? (
                 <div className="flex justify-center py-16"><Clock className="animate-spin text-blue-600" size={36} /></div>
               ) : completedInspections.length === 0 ? (
@@ -846,9 +844,9 @@ export default function InspectorDashboardPage() {
                   </p>
                   <div className="space-y-4">
                     {completedInspections.map((inspection) => (
-                      <div key={inspection.id} className="p-6 bg-gray-50 rounded-2xl border border-gray-200">
-                        <div className="flex gap-6 mb-4">
-                          <div className="w-32 h-32 flex-shrink-0 rounded-xl overflow-hidden bg-gray-200">
+                      <div key={inspection.id} className="p-4 sm:p-6 bg-gray-50 rounded-2xl border border-gray-200">
+                        <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 mb-4">
+                          <div className="w-full h-48 sm:w-32 sm:h-32 flex-shrink-0 rounded-xl overflow-hidden bg-gray-200">
                             {inspection.propertyImage ? (
                               <img src={inspection.propertyImage} alt={inspection.propertyTitle} className="w-full h-full object-cover"
                                 onError={(e) => ((e.currentTarget as HTMLImageElement).src = '/images/property-placeholder.jpg')} />
@@ -857,11 +855,11 @@ export default function InspectorDashboardPage() {
                             )}
                           </div>
                           <div className="flex-1">
-                            <div className="flex items-start justify-between mb-3">
+                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-3 gap-3">
                               <div>
-                                <h3 className="text-xl font-bold text-gray-900 mb-2">{inspection.propertyTitle}</h3>
+                                <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">{inspection.propertyTitle}</h3>
                                 <p className="text-sm text-gray-600 mb-2">{inspection.propertyAddress}</p>
-                                <div className="flex items-center gap-4 text-sm text-gray-600">
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-gray-600">
                                   <div className="flex items-center gap-1"><Calendar size={14} /><span>Inspected: {inspection.scheduledDate}</span></div>
                                   <div className="flex items-center gap-1"><User size={14} /><span>Agent: {inspection.agentName}</span></div>
                                 </div>
@@ -870,7 +868,7 @@ export default function InspectorDashboardPage() {
                                 const vc = getVerdictConfig(inspection.finalVerdict!);
                                 const Icon = vc.icon;
                                 return (
-                                  <span className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl border ${vc.color}`}>
+                                  <span className={`self-start inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 text-xs sm:text-sm font-bold rounded-xl border ${vc.color}`}>
                                     <Icon size={16} />{vc.label}
                                   </span>
                                 );
