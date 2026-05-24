@@ -31,6 +31,7 @@ import {
   Loader2,
   ImagePlus,
   Shield,
+  TrendingUp,
 } from 'lucide-react';
 
 import {
@@ -176,7 +177,7 @@ export default function OwnerDashboardPage() {
 
   // ── tab / ui state
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'create' | 'manage' | 'offers' | 'inspection' | 'disputes' | 'messages'
+    'dashboard' | 'create' | 'manage' | 'offers' | 'inspection' | 'disputes' | 'messages' | 'notifications'
   >('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
@@ -304,6 +305,31 @@ export default function OwnerDashboardPage() {
   useEffect(() => {
     if (activeTab === 'disputes') loadDisputes();
   }, [activeTab, loadDisputes]);
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'OfferResponse':    return <DollarSign     className="text-blue-600"   size={16} />;
+      case 'ListingStatus':    return <Home            className="text-green-600"  size={16} />;
+      case 'InspectionUpdate': return <ClipboardCheck  className="text-purple-600" size={16} />;
+      case 'MessageReceived':  return <MessageSquare   className="text-gray-600"   size={16} />;
+      case 'AccountDecision':  return <CheckCircle     className="text-green-600"  size={16} />;
+      case 'DisputeUpdate':    return <AlertCircle     className="text-red-600"    size={16} />;
+      case 'TransactionClosed':return <TrendingUp      className="text-blue-600"   size={16} />;
+      default:                 return <Bell            className="text-gray-600"   size={16} />;
+    }
+  };
+
+  const getNotificationBg = (type: string) => {
+    switch (type) {
+      case 'OfferResponse':    return 'bg-blue-100';
+      case 'ListingStatus':    return 'bg-green-100';
+      case 'InspectionUpdate': return 'bg-purple-100';
+      case 'AccountDecision':  return 'bg-green-100';
+      case 'DisputeUpdate':    return 'bg-red-100';
+      case 'TransactionClosed':return 'bg-blue-100';
+      default:                 return 'bg-gray-100';
+    }
+  };
 
   const handleSelectThread = useCallback(async (thread: MessageThreadDto) => {
     setActiveThread(thread);
@@ -540,8 +566,10 @@ export default function OwnerDashboardPage() {
           { tab: 'inspection', icon: <ClipboardCheck size={20} />, label: 'Inspection' },
           { tab: 'disputes',   icon: <Shield size={20} />,         label: 'Disputes',
             count: disputes.filter(d => d.status === 'Open' || d.status === 'UnderReview').length || undefined },
-          { tab: 'messages',   icon: <MessageSquare size={20} />,  label: 'Messages',
+          { tab: 'messages',       icon: <MessageSquare size={20} />,  label: 'Messages',
             count: threads.reduce((s, t) => s + t.unreadCount, 0) || undefined },
+          { tab: 'notifications',  icon: <Bell size={20} />,           label: 'Notifications',
+            count: notifications.filter((n) => !n.isRead).length || undefined },
         ].map(({ tab, icon, label, count }) => (
           <button
             key={tab}
@@ -641,8 +669,9 @@ export default function OwnerDashboardPage() {
                     {activeTab === 'manage'     && 'Manage Listings'}
                     {activeTab === 'offers'     && `Offers — ${selectedListing?.title}`}
                     {activeTab === 'inspection' && (inspectionListingId ? `Inspection — ${displayListings.find(l => l.id === inspectionListingId)?.title ?? ''}` : 'Property Inspection')}
-                    {activeTab === 'disputes'   && 'Disputes'}
-                    {activeTab === 'messages'   && 'Messages'}
+                    {activeTab === 'disputes'      && 'Disputes'}
+                    {activeTab === 'messages'      && 'Messages'}
+                    {activeTab === 'notifications' && 'Notifications'}
                   </h1>
                   <p className="text-xs sm:text-sm text-gray-600 mt-0.5 truncate hidden sm:block">
                     {activeTab === 'dashboard' && 'Overview of all your listings and activity'}
@@ -651,7 +680,7 @@ export default function OwnerDashboardPage() {
                   </p>
                 </div>
               </div>
-              <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <button onClick={() => setActiveTab('notifications')} className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <Bell size={22} className="text-gray-700" />
                 {notifications.filter((n) => !n.isRead).length > 0 && (
                   <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
@@ -1722,6 +1751,38 @@ export default function OwnerDashboardPage() {
                     </div>
                   </>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Notifications Tab ── */}
+          {activeTab === 'notifications' && (
+            <div className="max-w-4xl mx-auto">
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
+                <p className="text-gray-700 font-semibold mb-6">
+                  You have {notifications.filter((n) => !n.isRead).length} unread notifications
+                </p>
+                <div className="space-y-3">
+                  {notifications.map((notification) => (
+                    <div key={notification.notificationId} onClick={() => handleMarkAsRead(notification.notificationId)}
+                      className={`p-5 rounded-xl border transition-all cursor-pointer ${notification.isRead ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
+                      <div className="flex items-start gap-4">
+                        <div className={`p-3 rounded-lg ${getNotificationBg(notification.type)}`}>
+                          {getNotificationIcon(notification.type)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-lg font-bold text-gray-900 mb-2">{notification.title}</p>
+                          <p className="text-sm text-gray-600 mb-2">{notification.body}</p>
+                          <p className="text-xs text-gray-500">{formatNotificationDate(notification.createdAt)}</p>
+                        </div>
+                        {!notification.isRead && <div className="w-3 h-3 bg-blue-600 rounded-full flex-shrink-0 mt-1" />}
+                      </div>
+                    </div>
+                  ))}
+                  {notifications.length === 0 && (
+                    <p className="text-center text-gray-500 py-8">No notifications yet.</p>
+                  )}
+                </div>
               </div>
             </div>
           )}

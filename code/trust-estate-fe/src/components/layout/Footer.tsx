@@ -13,7 +13,7 @@ export const Footer = () => {
             <div className="flex items-center gap-2 text-2xl font-bold tracking-tight text-white">
               <div className="p-1.5 bg-blue-600 rounded-xl">
                 <img
-                  src="/images/logo.png"
+                  src="/images/logo.svg"
                   alt="TrustEstate"
                   className="w-8 h-8 object-contain"
                   onError={(e) =>
